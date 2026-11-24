@@ -92,6 +92,8 @@
   .sub { margin-left: 24px; display: flex; flex-direction: column; gap: 5px; padding: 2px 0 4px; color: var(--muted); }
   .sub .row { gap: 5px; }
   .hint { color: var(--muted); font-size: 12px; }
+  /* Underoverskrift i en seksjon, som NCS Insights ctrl-label. */
+  .subh { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
   .lyr { display: flex; align-items: center; gap: 7px; }
   .lyr .name { flex: 1; }
   .lyr .lbl { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 2px; }
@@ -379,28 +381,6 @@
     </details>
 
     <details>
-      <summary>Markører og ledelinjer</summary>
-      <div class="sec">
-        <div class="hint">Et punkt med strek til en tekst, f.eks. for å vise et sted. Dra teksten for å flytte den, dra punktet for å flytte markøren, høyreklikk teksten for å endre den.</div>
-        <div class="hint">Etiketter som dras bort fra objektet sitt får samme strek og punkt.</div>
-        <div class="row"><button id="btnAddMarker" class="grow">＋ Legg til markør (klikk i kartet)</button></div>
-        <div id="markerList" class="sec" style="padding:0"></div>
-        <div class="row"><span class="grow">Farge</span><input type="color" id="markerColor" />
-          <button class="small" id="markerReset" title="Tilbake til temaets standard">↺</button></div>
-        <div class="row"><span class="grow">Tekststørrelse</span><input type="range" id="markerTextSize" min="12" max="48" step="1" style="width:110px" /><span id="markerTextSizeVal" style="width:22px"></span></div>
-        <div class="row"><span class="grow">Punktstørrelse</span><input type="range" id="markerDot" min="0.5" max="3" step="0.1" style="width:110px" /><span id="markerDotVal" style="width:22px"></span></div>
-        <div class="row"><span>Strek</span>
-          <select id="leaderMode" class="grow">
-            <option value="free">Fri (rett strek)</option>
-            <option value="level">Vannrett med målet</option>
-            <option value="elbow">Knekt (vannrett fra målet, så skrå)</option>
-          </select></div>
-        <div class="row" id="leaderAngleRow"><span class="grow">Vinkel på knekken</span><input type="range" id="leaderAngle" min="10" max="80" step="5" style="width:110px" /><span id="leaderAngleVal" style="width:30px"></span></div>
-        <div class="hint">Gjelder markører og flyttede etiketter. «Vannrett med målet» holder teksten i samme høyde som punktet, så den bare kan dras sideveis.</div>
-      </div>
-    </details>
-
-    <details>
       <summary>Tegnforklaring</summary>
       <div class="sec">
         <label class="row"><input type="checkbox" id="showLegend" /> Tegnforklaring
@@ -458,13 +438,35 @@
       </div>
     </details>
 
+    <!-- Etiketter og markører deler tekststørrelse, skrift og ledelinjer, så alle valgene står samlet. -->
     <details>
-      <summary>Etiketter og symboler</summary>
+      <summary>Etiketter og markører</summary>
       <div class="sec">
-        <div class="row"><span class="grow">Tekststørrelse etiketter</span><input type="range" id="labelSize" min="8" max="28" step="1" style="width:110px" /><span id="labelSizeVal" style="width:22px"></span></div>
+        <div class="row"><span class="grow">Tekststørrelse</span><input type="range" id="labelSize" min="8" max="28" step="1" style="width:110px" /><span id="labelSizeVal" style="width:22px"></span></div>
+        <div class="hint">Gjelder etikettene i kartet og markørene, som har samme skrift som feltnavnene.</div>
         <div class="row"><span class="grow">Symbolstørrelse</span><input type="range" id="symbolSize" min="0.5" max="2.5" step="0.1" style="width:110px" /><span id="symbolSizeVal" style="width:22px"></span></div>
         <label class="row"><input type="checkbox" id="declutter" /> Skjul overlappende etiketter</label>
-        <div class="row"><button id="btnResetLabels" class="grow">Nullstill flyttede/skjulte/redigerte etiketter</button></div>
+
+        <div class="subh">Ledelinjer</div>
+        <div class="hint">Dra en etikett bort fra objektet sitt, så får den strek og punkt. Valgene under gjelder både flyttede etiketter og markører.</div>
+        <div class="row"><span class="grow">Farge</span><input type="color" id="markerColor" />
+          <button class="small" id="markerReset" title="Tilbake til temaets standard">↺</button></div>
+        <div class="row"><span class="grow">Punktstørrelse</span><input type="range" id="markerDot" min="0.5" max="3" step="0.1" style="width:110px" /><span id="markerDotVal" style="width:22px"></span></div>
+        <div class="row"><span>Strek</span>
+          <select id="leaderMode" class="grow">
+            <option value="free">Fri (rett strek)</option>
+            <option value="level">Vannrett med målet</option>
+            <option value="elbow">Knekt (vannrett fra målet, så skrå)</option>
+          </select></div>
+        <div class="row" id="leaderAngleRow"><span class="grow">Vinkel på knekken</span><input type="range" id="leaderAngle" min="10" max="80" step="5" style="width:110px" /><span id="leaderAngleVal" style="width:30px"></span></div>
+        <div class="hint">«Vannrett med målet» holder teksten i samme høyde som punktet, så den bare kan dras sideveis.</div>
+
+        <div class="subh">Markører</div>
+        <div class="hint">Et punkt med strek til en tekst, f.eks. for å vise et sted. Dra teksten for å flytte den, dra punktet for å flytte markøren, høyreklikk teksten for å endre den.</div>
+        <div class="row"><button id="btnAddMarker" class="grow">＋ Legg til markør (klikk i kartet)</button></div>
+        <div id="markerList" class="sec" style="padding:0"></div>
+
+        <div class="row" style="margin-top:6px"><button id="btnResetLabels" class="grow">Nullstill flyttede/skjulte/redigerte etiketter</button></div>
       </div>
     </details>
 
@@ -663,6 +665,10 @@ const EN = {
   'Vis eierandel i etiketten': 'Show equity share in label', 'Farge for andre selskaper': 'Colour for other companies',
   'Gjelder felt, funn og lisenser.': 'Applies to fields, discoveries and licences.', 'Fjern': 'Remove', 'Fjern alle': 'Remove all',
   // Kartlag
+  'Etiketter og markører': 'Labels and markers', 'Ledelinjer': 'Leader lines', 'Markører': 'Markers',
+  'Gjelder etikettene i kartet og markørene, som har samme skrift som feltnavnene.': 'Applies to the map labels and the markers, which use the same font as the field names.',
+  'Dra en etikett bort fra objektet sitt, så får den strek og punkt. Valgene under gjelder både flyttede etiketter og markører.': 'Drag a label away from its object and it gets a line and a dot. The options below apply to both moved labels and markers.',
+  '«Vannrett med målet» holder teksten i samme høyde som punktet, så den bare kan dras sideveis.': '«Level with the target» keeps the text at the same height as the dot, so it can only be dragged sideways.',
   'Kartlag': 'Map layers', 'Farge': 'Colour', 'Vis etiketter': 'Show labels',
   'Lisenser (aktive)': 'Licences (active)', 'Funn': 'Discoveries', 'Nedstengte felt': 'Shut-down fields', 'Felt godkjent for utbygging': 'Fields approved for development',
   'Felt i produksjon': 'Producing fields', 'Rørledninger (transport)': 'Pipelines (transport)', 'Innretninger': 'Facilities', 'Letebrønner': 'Exploration wells',
@@ -801,7 +807,7 @@ function defaultState() {
     labelSize: 16, symbolSize: 1.2, declutter: true, fieldScale: 1, fieldScaleDsc: false, fieldScaleSel: false,
     tilt: 0, bearing: 0, extrude: 10, landHeight: 0, extFields: true, extDsc: false, shadow: true, haze: true,
     offsets: {}, hidden: [], labelText: {},
-    markers: [], markerColor: null, markerTextSize: 26, markerDot: 1, leaderMode: 'free', leaderAngle: 45,
+    markers: [], markerColor: null, markerDot: 1, leaderMode: 'free', leaderAngle: 45,
     lang: storedLang() === 'no' ? 'no' : 'en',   // engelsk er standard
   };
 }
@@ -810,6 +816,8 @@ let S = defaultState();
 // Eldre lenker: «leaderLevel» (av/på) er erstattet av «leaderMode».
 function upgradeState(st) {
   if ('leaderLevel' in st) { if (st.leaderLevel) st.leaderMode = 'level'; delete st.leaderLevel; }
+  // Markørene hadde egen tekststørrelse; nå følger de etikettenes.
+  delete st.markerTextSize;
   return st;
 }
 function mergeState(base, saved) {
@@ -1771,14 +1779,15 @@ function editLabelInMap(node, c, onSave) {
 
 // ── Markører: punkt med strek til en tekst ──────────────────────────────────
 // Teksten står forskjøvet (dx, dy) fra punktet; streken går fra tekstens kant til punktet.
-const MARKER_GAP = 8;
+// Teksten har samme størrelse og skrift som feltnavnene (etikettstørrelsen, fet).
+const MARKER_GAP = 8, MARKER_WEIGHT = 'bold';
 function markerGeom(m) {
   const lh = landH();
   const xy = P([m.lon, m.lat], lh > 0 && onLand([m.lon, m.lat]) ? lh : 0);
   if (!xy) return null;
-  const fs = S.markerTextSize, r = 4.5 * S.markerDot;
+  const fs = S.labelSize, r = 4.5 * S.markerDot;
   const lx = xy[0] + m.dx, ly = xy[1] + (leaderLevel() ? 0 : m.dy), end = m.dx < 0;
-  const tw = textWidth(m.text || ' ', fs, '300');
+  const tw = textWidth(m.text || ' ', fs, MARKER_WEIGHT);
   const sx = lx + (end ? MARKER_GAP : -MARKER_GAP), sy = ly;
   return { xy, fs, r, lx, ly, end, tw, line: leaderPath(sx, sy, xy[0], xy[1]) };
 }
@@ -1818,9 +1827,9 @@ function drawMarkers(g, T) {
     if (G.line) leaderStyle(mg.append('path')).attr('d', G.line);
     mg.append('circle').attr('cx', G.xy[0]).attr('cy', G.xy[1]).attr('r', G.r).attr('fill', col);
     const txt = sel => sel.attr('x', G.lx).attr('y', G.ly).attr('dy', (G.fs * 0.35).toFixed(1)).attr('text-anchor', G.end ? 'end' : 'start')
-      .attr('font-family', FONT).attr('font-size', G.fs).attr('font-weight', 300).text(m.text);
-    // Glorie i temaets bakgrunnsfarge (usynlig mot havet, men gir lesbarhet over felt og lisenser).
-    txt(mg.append('text')).attr('fill', 'none').attr('stroke', T.halo).attr('stroke-width', Math.max(2.5, G.fs * 0.16)).attr('stroke-linejoin', 'round').attr('stroke-opacity', 0.85);
+      .attr('font-family', FONT).attr('font-size', G.fs.toFixed(1)).attr('font-weight', MARKER_WEIGHT).text(m.text);
+    // Glorie i temaets bakgrunnsfarge, som på etikettene (usynlig mot havet, men gir lesbarhet over felt og lisenser).
+    txt(mg.append('text')).attr('fill', 'none').attr('stroke', T.halo).attr('stroke-width', Math.max(2.4, G.fs * 0.24)).attr('stroke-linejoin', 'round').attr('stroke-opacity', 0.9);
     txt(mg.append('text')).attr('class', 'mktext').attr('fill', T.ink);
     const x0 = G.end ? G.lx - G.tw : G.lx;
     boxes.push({ x0: x0 - 3, x1: x0 + G.tw + 3, y0: G.ly - G.fs * 0.6, y1: G.ly + G.fs * 0.6 });
@@ -1879,7 +1888,6 @@ function syncLeaderControls() {
 }
 function syncMarkerControls() {
   $('markerColor').value = markerColor();
-  $('markerTextSizeVal').textContent = S.markerTextSize;
   $('markerDotVal').textContent = (+S.markerDot).toFixed(1);
 }
 
@@ -3019,7 +3027,6 @@ function syncAllControls() {
   $('labelSizeVal').textContent = S.labelSize;
   $('symbolSizeVal').textContent = (+S.symbolSize).toFixed(1);
   syncFieldScale();
-  bindValue('markerTextSize', () => S.markerTextSize, v => { S.markerTextSize = +v; syncMarkerControls(); }, 'input');
   bindValue('markerDot', () => S.markerDot, v => { S.markerDot = +v; syncMarkerControls(); }, 'input');
   bindValue('leaderMode', () => S.leaderMode, v => { S.leaderMode = v; syncLeaderControls(); });
   bindValue('leaderAngle', () => S.leaderAngle, v => { S.leaderAngle = +v; syncLeaderControls(); }, 'input');
