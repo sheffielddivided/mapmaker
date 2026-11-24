@@ -45,6 +45,13 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
 - **Eksport:** *Kopier* legger en PNG på utklippstavlen (lim inn i PowerPoint med Ctrl+V), *PNG*
   laster ned i opptil 8K, og *SVG* gir vektorgrafikk. I PowerPoint kan SVG-en konverteres til figur
   ved å høyreklikke og velge «Konverter til figur».
+- **Animasjon (video):** under Lagre lager «Lag video (MP4)» en kameratur der kartet flyr inn til sluttbildet,
+  med valgfri sving (rotasjon underveis), bue (hvor mye kameraet løfter seg), varighet og hold på slutten.
+  Starten er automatisk (samme midtpunkt, flatt og zoomet ut), et av de faste utsnittene eller et eget utsnitt.
+  Slutten følger kartet eller låses. Etiketter og pynt tones inn ved landing (tittelen kan stå hele tiden),
+  så den siste ruten er lik PNG-eksporten. Videoen tegnes rute for rute i full kvalitet og kodes som H.264
+  med WebCodecs i nettleseren ([mp4-muxer](https://github.com/Vanilagy/mp4-muxer) lastes fra CDN først
+  når videoen lages). Forhåndsvisningen bruker forenklet detalj.
 - **Etiketter:** overlappende etiketter skjules automatisk. Dra en etikett for å flytte den, og
   dobbeltklikk for å skjule den, og høyreklikk for å endre teksten. Panelet «Etiketter i kartet» lister alle etiketter som vises nå,
   gruppert etter type, med avkrysning for å skjule/vise hver enkelt. Teksten i en etikett kan redigeres
@@ -111,7 +118,7 @@ python3 -m http.server 8000
 
 | Fil | Rolle |
 |---|---|
-| `index.html` | Hele Mapmaker. Én fil, vanilla JS med d3 og topojson-client fra CDN, ingen byggesteg |
+| `index.html` | Hele Mapmaker. Én fil, vanilla JS med d3 og topojson-client fra CDN (og mp4-muxer ved videoeksport), ingen byggesteg |
 | `fetch_data.py` | Henter kartlagene fra Sodir, NSTA og Energistyrelsen og skriver `data/*.json` |
 | `data/` | Kartlagene (`fields`, `discoveries`, `licences`, `pipelines`, `facilities`, `quadrants`, og `wells` og `blocks`, som lastes først når de slås på), `companies.json` (juridiske navn → konsern), `meta.json` (dato og kilder) og det statiske bakgrunnskartet `basemap.json` |
 | `.github/workflows/update-data.yml` | Kjører `fetch_data.py` daglig 04:30 UTC og committer bare når dataene er endret |
