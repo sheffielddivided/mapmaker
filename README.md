@@ -33,11 +33,12 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
 - **3D-effekt:** vipping og rotasjon, felt og funn som klosser, og forhøyet land med kystvegger («Landhøyde»).
 - **Profiltemaer:** «Profil – lyst kart» og «Profil – mørkt kart» følger profilens kartfarger (bakgrunn,
   kart, tekst og markør).
-- **Markører:** punkt med strek til en tekst, f.eks. for å vise et sted. Klikk i kartet for å plassere,
-  dra teksten eller punktet for å flytte, og høyreklikk teksten for å endre den. Flyttede etiketter får
-  samme strek og punkt. Streken kan være fri, vannrett med målet eller knekt (vannrett ut fra målet,
-  så skrå i valgfri vinkel). Farge, tekst- og
-  punktstørrelse kan justeres; standardfargen følger temaet.
+- **Markører og ledelinjer:** punkt med strek til en tekst, f.eks. for å vise et sted. Klikk i kartet for å plassere,
+  dra teksten eller punktet for å flytte, og høyreklikk teksten for å endre den. Etiketter som dras bort fra
+  objektet sitt, får samme strek og punkt. Markørtekst og etiketter har samme tekststørrelse og skrift som
+  feltnavnene. Strekvalgene gjelder både markører og flyttede etiketter og står sammen med etikettvalgene
+  under «Etiketter og markører»: farge, punktstørrelse og strektype (fri, vannrett med målet eller knekt,
+  dvs. vannrett ut fra målet og så skrå i valgfri vinkel). Standardfargen følger temaet.
 - **Tegnforklaring:** i et av hjørnene, eller dra den til valgfri plass i kartet («Flyttet manuelt»).
 - **Slide-format:** 16:9, halvside, 4:3, kvadrat, stående eller egendefinert. Rammen viser nøyaktig
   det som eksporteres.
