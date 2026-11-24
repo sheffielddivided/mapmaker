@@ -23,6 +23,10 @@
   header { display: flex; align-items: center; gap: 12px; min-height: var(--topbar-h); padding: 6px 16px; background: var(--navy); color: #fff; flex-wrap: wrap; }
   header h1 { font-size: 1rem; margin: 0 12px 0 0; font-weight: 700; letter-spacing: -0.01em; }
   header .grow { flex: 1; }
+  /* Lenke til søsterappen NCS Insight, som en dempet knapp i topplinjen. */
+  header .applink { color: rgba(255,255,255,.8); text-decoration: none; font-size: 0.8rem; font-weight: 700; padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,.28); border-radius: 6px; white-space: nowrap; }
+  header .applink:hover { color: #fff; background: rgba(255,255,255,.12); }
   header .group { display: flex; align-items: center; gap: 6px; }
   header label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: rgba(255,255,255,.75); }
   header select, header input[type=number], header button:not(.primary) {
@@ -147,6 +151,7 @@
 <body>
 <header>
   <h1>NCS Mapmaker</h1>
+  <a class="applink" href="https://energy.kbak.no/" target="_blank" rel="noopener" title="Åpne NCS Insight i ny fane">NCS Insight <span aria-hidden="true">↗</span></a>
   <div class="group">
     <label for="format">Format</label>
     <select id="format">
@@ -665,6 +670,7 @@ const EN = {
   'Vis eierandel i etiketten': 'Show equity share in label', 'Farge for andre selskaper': 'Colour for other companies',
   'Gjelder felt, funn og lisenser.': 'Applies to fields, discoveries and licences.', 'Fjern': 'Remove', 'Fjern alle': 'Remove all',
   // Kartlag
+  'Åpne NCS Insight i ny fane': 'Open NCS Insight in a new tab',
   'Etiketter og markører': 'Labels and markers', 'Ledelinjer': 'Leader lines', 'Markører': 'Markers',
   'Gjelder etikettene i kartet og markørene, som har samme skrift som feltnavnene.': 'Applies to the map labels and the markers, which use the same font as the field names.',
   'Dra en etikett bort fra objektet sitt, så får den strek og punkt. Valgene under gjelder både flyttede etiketter og markører.': 'Drag a label away from its object and it gets a line and a dot. The options below apply to both moved labels and markers.',
