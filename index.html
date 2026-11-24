@@ -134,6 +134,14 @@
   #tip { position: fixed; pointer-events: none; background: rgba(25,32,44,.94); color: #fff; padding: 7px 9px; border-radius: 6px; font-size: 12px; max-width: 300px; display: none; z-index: 10; }
   #tip b { font-size: 13px; }
   #tip .m { color: #b8c3d4; }
+  /* Animasjon: dekker kartet mens en animasjonsrute vises eller videoen lages. */
+  #animShade { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 28px; cursor: pointer; z-index: 3; }
+  #animShade.show { display: flex; }
+  #animShade .box { background: rgba(20,30,45,.82); color: #fff; font-size: 12px; padding: 5px 10px; border-radius: 6px; display: flex; gap: 8px; align-items: center; }
+  #animShade #animCancel { display: none; }
+  #animShade.busy { cursor: progress; background: rgba(255,255,255,.08); }
+  #animShade.busy #animCancel { display: inline-block; }
+  body.animbusy #panel, body.animbusy header { pointer-events: none; opacity: .55; }
   #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
   #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #1c2430; color: #fff; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
   #toast.show { opacity: 1; }
@@ -499,6 +507,32 @@
         <div class="row"><button id="btnReset" class="grow">Tilbakestill alt</button></div>
       </div>
     </details>
+    <details>
+      <summary>Animasjon (video)</summary>
+      <div class="sec">
+        <div class="hint">Kameraet flyr inn til sluttbildet. Videoen settes inn i PowerPoint med Sett inn → Video.</div>
+        <div class="row"><span class="grow">Start</span><select id="animStart" style="width:170px"></select></div>
+        <div class="row" id="animStartCustom"><button id="animStartSet" class="small grow">Bruk nåværende utsnitt som start</button><button id="animStartGo" class="small">Gå hit</button></div>
+        <div class="row"><span class="grow">Slutt</span><span id="animEndInfo" class="hint"></span></div>
+        <div class="row"><button id="animEndSet" class="small grow">Lås nåværende utsnitt som slutt</button><button id="animEndGo" class="small">Gå hit</button><button id="animEndFree" class="small">Følg kartet</button></div>
+        <div class="row"><span class="grow">Varighet</span><input type="range" id="animDur" min="3" max="15" step="0.5" style="width:130px" /><span id="animDurVal" style="width:30px"></span></div>
+        <div class="row"><span class="grow">Sving</span><input type="range" id="animSwing" min="-90" max="90" step="5" style="width:130px" /><span id="animSwingVal" style="width:30px"></span></div>
+        <div class="row"><span class="grow">Bue</span><input type="range" id="animArc" min="0" max="100" step="5" style="width:130px" /><span id="animArcVal" style="width:30px"></span></div>
+        <div class="row"><span class="grow">Hold på slutten</span><input type="range" id="animHold" min="1" max="3" step="0.5" style="width:130px" /><span id="animHoldVal" style="width:30px"></span></div>
+        <div class="row"><span class="grow">Etiketter og pynt</span><select id="animLabels" style="width:170px"><option value="fade">Tones inn ved landing</option><option value="always">Vises hele tiden</option></select></div>
+        <label class="row" id="animTitleRow"><input type="checkbox" id="animTitle" /> Tittel synlig hele tiden</label>
+        <details class="more">
+          <summary>Flere valg</summary>
+          <div class="sec">
+            <div class="row"><span class="grow">Vipping</span><select id="animTilt" style="width:170px"><option value="smooth">Gradvis</option><option value="late">Mot slutten</option></select></div>
+          </div>
+        </details>
+        <div class="row"><button id="animPlay" class="small" style="width:96px">▶ Forhåndsvis</button><input type="range" id="animScrub" class="grow" min="0" max="1000" step="1" value="1000" /><span id="animTime" style="width:38px;text-align:right"></span></div>
+        <div class="hint">Forhåndsvisningen viser forenklet detalj og kan hakke. Videoen tegnes rute for rute i full kvalitet.</div>
+        <div class="row"><span class="grow">Oppløsning</span><select id="animRes"><option value="1080">1080p</option><option value="1440">1440p</option><option value="2160">4K</option></select></div>
+        <div class="row"><button id="animExport" class="primary grow">Lag video (MP4)</button></div>
+      </div>
+    </details>
     </div>
   </aside>
 
@@ -506,6 +540,7 @@
     <div id="frame">
       <svg id="map" xmlns="http://www.w3.org/2000/svg"></svg>
       <div id="loading">Laster kartdata …</div>
+      <div id="animShade"><div class="box"><span id="animShadeText"></span><button id="animCancel" class="small">Avbryt</button></div></div>
     </div>
     <div id="zoomctl"><button id="zin" title="Zoom inn">+</button><button id="zout" title="Zoom ut">−</button></div>
   </section>
@@ -746,6 +781,44 @@ const EN = {
   'Uutbygd funn (UK)': 'Undeveloped discovery (UK)', 'Flerfase': 'Multiphase', 'Sektor': 'Sector', 'Kilde': 'Source',
   'Sokkeldirektoratet (NLOD)': 'Norwegian Offshore Directorate (NLOD)', 'Energistyrelsen': 'Danish Energy Agency', 'data per {0}': 'data as of {0}', 'Lastet «{0}»': 'Loaded “{0}”', 'Slette malen «{0}»?': 'Delete the template “{0}”?',
   'kart': 'map',
+  // Animasjon
+  'Animasjon (video)': 'Animation (video)',
+  'Kameraet flyr inn til sluttbildet. Videoen settes inn i PowerPoint med Sett inn → Video.': 'The camera flies in to the final view. Insert the video in PowerPoint with Insert → Video.',
+  'Start': 'Start',
+  'Slutt': 'End',
+  'Bruk nåværende utsnitt som start': 'Use current view as start',
+  'Gå hit': 'Go there',
+  'Lås nåværende utsnitt som slutt': 'Lock current view as end',
+  'Følg kartet': 'Follow the map',
+  'Varighet': 'Duration',
+  'Sving': 'Swing',
+  'Bue': 'Arc',
+  'Hold på slutten': 'Hold at the end',
+  'Etiketter og pynt': 'Labels and extras',
+  'Tones inn ved landing': 'Fade in on arrival',
+  'Vises hele tiden': 'Always shown',
+  'Tittel synlig hele tiden': 'Title always visible',
+  'Gradvis': 'Gradual',
+  'Mot slutten': 'Towards the end',
+  '▶ Forhåndsvis': '▶ Preview',
+  '■ Stopp': '■ Stop',
+  'Forhåndsvisningen viser forenklet detalj og kan hakke. Videoen tegnes rute for rute i full kvalitet.': 'The preview uses simplified detail and may stutter. The video is drawn frame by frame in full quality.',
+  'Lag video (MP4)': 'Create video (MP4)',
+  'Avbryt': 'Cancel',
+  'Automatisk': 'Automatic',
+  'Eget utsnitt': 'Custom view',
+  'Låst utsnitt': 'Locked view',
+  'Følger kartet': 'Follows the map',
+  'Forhåndsvisning · klikk i kartet for å gå tilbake': 'Preview · click the map to go back',
+  'Kunne ikke laste videomodulen': 'Could not load the video module',
+  'Nettleseren kan ikke lage video. Bruk en oppdatert Chrome, Edge, Safari eller Firefox.': 'This browser cannot create video. Use an up-to-date Chrome, Edge, Safari or Firefox.',
+  'Nettleseren kan ikke lage MP4-video (H.264) i {0}×{1}': 'This browser cannot create MP4 video (H.264) at {0}×{1}',
+  'Lager video … {0} %': 'Creating video … {0} %',
+  'Videoen er lagret – sett den inn i PowerPoint med Sett inn → Video': 'The video is saved – insert it in PowerPoint with Insert → Video',
+  'Videoen kunne ikke lages: {0}': 'The video could not be created: {0}',
+  'Kartet viser starten. Flytt det dit filmen skal starte, og trykk «Bruk nåværende utsnitt som start».': 'The map shows the start. Move it to where the video should begin, and press “Use current view as start”.',
+  'Startpunktet er lagret': 'The start point is saved',
+  'Sluttpunktet er låst': 'The end point is locked',
 };
 function t(str, ...args) {
   let out = S.lang === 'en' ? (EN[str] ?? str) : str;
@@ -814,6 +887,9 @@ function defaultState() {
     tilt: 0, bearing: 0, extrude: 10, landHeight: 0, extFields: true, extDsc: false, shadow: true, haze: true,
     offsets: {}, hidden: [], labelText: {},
     markers: [], markerColor: null, markerDot: 1, leaderMode: 'free', leaderAngle: 45,
+    // Animasjon. Kamera = { center, scale, tilt, bearing }. start: 'auto', 'p0'… (utsnitt) eller 'custom' (startView).
+    // end: null = følger kartet slik det står.
+    anim: { start: 'auto', startView: null, end: null, dur: 6, swing: 30, arc: 50, hold: 2, tiltMode: 'smooth', labels: 'fade', titleAlways: true, res: 1080 },
     lang: storedLang() === 'no' ? 'no' : 'en',   // engelsk er standard
   };
 }
@@ -1328,8 +1404,13 @@ function layerItems(L) {
   return out;
 }
 
+// Animasjonsruter tegnes med render() i en egen modus (se «Animasjon»): uten etiketter og pynt under
+// flyturen, og uten bivirkninger (lenke, etikettliste, dra-funksjoner). null = vanlig tegning.
+let RENDER_MODE = null;
 function render() {
   if (!BASE) return;
+  const RM = RENDER_MODE;
+  if (!RM && ANIM_SHOWING) hideAnimFrame();
   const T = theme();
   const w = W(), h = H(), k = S.symbolSize;
   svg.attr('viewBox', `0 0 ${w} ${h}`).attr('width', null).attr('height', null);
@@ -1358,7 +1439,7 @@ function render() {
   else g.append('path').attr('d', path(landToDraw())).attr('fill', S.land).attr('stroke', T.coast).attr('stroke-width', 0.6).attr('stroke-linejoin', 'round');
   if (S.borders) g.append('path').attr('d', pathAt(lh)(bordersToDraw())).attr('fill', 'none').attr('stroke', T.border).attr('stroke-width', 0.8).attr('stroke-dasharray', '3 2');
 
-  if (S.blocks) {
+  if (S.blocks && !(RM && RM.draft)) {
     if (D.blocks) g.append('path').attr('d', path({ type: 'FeatureCollection', features: D.blocks.features.filter(inSector) }))
       .attr('fill', 'none').attr('stroke', S.blockColor || T.grid).attr('stroke-width', S.blockWidth).attr('stroke-opacity', S.blockColor ? 1 : 0.6);
     else ensureLazy('blocks');
@@ -1384,6 +1465,7 @@ function render() {
   }
 
   const labels = [];   // kandidater for etiketter
+  const wantLabels = !RM || RM.labels;
   const L_ORDER = ['licences', 'discoveries', 'shutdown', 'approved', 'producing', 'pipelines', 'facilities', 'wells'];
   const labelPriority = { producing: 10, approved: 9, facilities: 8, shutdown: 6, discoveries: 5, licences: 3, wells: 2 };
 
@@ -1401,6 +1483,7 @@ function render() {
   for (const key of L_ORDER) {
     const L = LAYER[key], st = S.layers[key];
     if (L.kind === 'point') flushBlocks();   // rørledninger ligger på havbunnen, under klossene
+    if (RM && RM.draft && key === 'wells') continue;
     const items = layerItems(L);
     if (!items.length) continue;
     const lg = g.append('g').attr('data-layer', key);
@@ -1417,7 +1500,7 @@ function render() {
           if (it.other) drewOther = true;
           lg.append('path').attr('d', `M${xy[0]},${xy[1] - r}L${xy[0] + r},${xy[1]}L${xy[0]},${xy[1] + r}L${xy[0] - r},${xy[1]}Z`)
             .attr('fill', fill).attr('stroke', d3.color(it.other ? S.otherColor : it.color).darker(0.8).formatHex()).attr('stroke-width', 0.8).attr('data-k', fk);
-          if (st.labels && !(it.other && S.labelsOnlySel)) labels.push(labelCandidate(key, it, xy, labelPriority[key], 'right'));
+          if (wantLabels && st.labels && !(it.other && S.labelsOnlySel)) labels.push(labelCandidate(key, it, xy, labelPriority[key], 'right'));
           continue;
         }
         if (enlarged(key, it)) it = { ...it, f: scaledFeature(it.f, S.fieldScale) };
@@ -1448,7 +1531,7 @@ function render() {
           const wall = [0.25, 0.55, 0.85, 1.15].map(v => d3.color(it.other ? fill : (fo < 0.99 && !striped ? top : solid)).darker(v).formatHex());
           blocks.push({ f: it.f, fk, fill: top, stroke, wall, dash });
         } else if (dash) el.attr('stroke-dasharray', key === 'licences' ? '4 2' : '3 2');
-        if (st.labels && !(it.other && S.labelsOnlySel)) {
+        if (wantLabels && st.labels && !(it.other && S.labelsOnlySel)) {
           let c = polyLabelPoint(it.f);
           if (c && ext) { const q = fromScreen(c[0], c[1]); c = q ? toScreen(q[0], q[1], S.extrude) : c; }
           if (c) labels.push(labelCandidate(key, it, c, labelPriority[key], 'center'));
@@ -1464,7 +1547,7 @@ function render() {
         const sw = S.pipes.byDim && it.p.dim ? Math.max(0.8, Math.min(3.2, it.p.dim / 14)) * k : 1.4 * k;
         lg.append('path').attr('d', d).attr('fill', 'none').attr('stroke', it.color).attr('stroke-width', sw)
           .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('data-k', fk);
-        if (st.labels) {
+        if (wantLabels && st.labels) {
           // Én etikett per rørnavn: den lengste synlige biten vinner.
           const text = pipeLabelText(it.p);
           const run = text && longestVisibleRun(it.f.geometry);
@@ -1487,7 +1570,7 @@ function render() {
         const fk = `${key}:${it.p.id}`;
         featIndex.set(fk, { L, p: it.p });
         drawPointSymbol(lg, key, it, xy, k, T).attr('data-k', fk);
-        const wantLabel = st.labels && (key !== 'facilities' || it.p.cls !== 'subsea');
+        const wantLabel = wantLabels && st.labels && (key !== 'facilities' || it.p.cls !== 'subsea');
         if (wantLabel) labels.push(labelCandidate(key, it, xy, labelPriority[key], 'right'));
       }
     }
@@ -1495,7 +1578,7 @@ function render() {
 
   flushBlocks();
 
-  if (S.cities) {
+  if (S.cities && wantLabels) {
     const cg = g.append('g');
     for (const [name, lon, lat, country] of CITIES) {
       if (!countryVisible(country)) continue;
@@ -1506,7 +1589,7 @@ function render() {
     }
   }
 
-  if (S.quads && S.quadLabels) {
+  if (S.quads && S.quadLabels && wantLabels) {
     for (const f of D.quadrants.features.filter(inSector)) {
       const c = path.centroid(f);
       if (!isFinite(c[0]) || c[0] < 0 || c[1] < 0 || c[0] > w || c[1] > h) continue;
@@ -1517,7 +1600,14 @@ function render() {
   gLabels = gRoot.append('g').attr('id', 'glabels');
   const gMarkers = gRoot.append('g').attr('id', 'gmarkers');
   gOverlay = svg.append('g').attr('id', 'goverlay');
-  drawOverlay(T);
+  if (!RM || RM.overlay === 'all') drawOverlay(T);
+  else if (RM.overlay === 'title') drawOverlay(T, true);
+  if (RM && !RM.labels) {
+    // Animasjonsrute uten etiketter: bysymbolene hører til etikettene og vises heller ikke.
+    LABEL_STATE = { placed: [], hidden: [] };
+    g.selectAll('circle.citydot').remove();
+    return;
+  }
   // Tittel, tegnforklaring, målestokk osv. er hindringer for etikettene, og det samme er markørene.
   const obstacles = drawMarkers(gMarkers, T);
   gOverlay.selectChildren().each(function () {
@@ -1535,6 +1625,7 @@ function render() {
   // Bysymboler vises bare når etiketten deres faktisk er plassert (ikke skjult eller fjernet av kollisjonssjekken).
   const placedKeys = new Set(LABEL_STATE.placed.map(c => c.key));
   g.selectAll('circle.citydot').filter(function () { return !placedKeys.has(this.getAttribute('data-city')); }).remove();
+  if (RM) return;
   attachInteractions();
   buildLabelList();
   usePaletteInPickers();
@@ -2144,17 +2235,20 @@ function drawInset(g, T) {
 }
 
 // ── Overlay: tittel, tegnforklaring, målestokk, nordpil, kilde ─────────────
-function drawOverlay(T) {
+function drawOverlay(T, titleOnly = false) {
   const w = W(), h = H(), g = gOverlay, m = 22;
   const ink = T.ink, box = T.box;
   let titleBottom = m;
   if (S.title && (S.titleText || S.subtitleText)) {
     const ts = Math.round(H() / 900 * 34);
     let y = m + ts * 0.8;
-    if (S.titleText) { g.append('text').attr('x', m).attr('y', y).attr('font-family', FONT).attr('font-size', ts).attr('font-weight', 'bold').attr('fill', ink).text(S.titleText); y += ts * 0.95; }
-    if (S.subtitleText) { g.append('text').attr('x', m).attr('y', y).attr('font-family', FONT).attr('font-size', ts * 0.55).attr('fill', ink).attr('fill-opacity', 0.8).text(S.subtitleText); y += ts * 0.6; }
+    // Klassen «ttl» skiller tittelen fra resten av pynten når animasjonen toner inn etiketter og pynt.
+    const tg = { append: tag => g.append(tag).attr('class', 'ttl') };
+    if (S.titleText) { tg.append('text').attr('x', m).attr('y', y).attr('font-family', FONT).attr('font-size', ts).attr('font-weight', 'bold').attr('fill', ink).text(S.titleText); y += ts * 0.95; }
+    if (S.subtitleText) { tg.append('text').attr('x', m).attr('y', y).attr('font-family', FONT).attr('font-size', ts * 0.55).attr('fill', ink).attr('fill-opacity', 0.8).text(S.subtitleText); y += ts * 0.6; }
     titleBottom = y + 6;
   }
+  if (titleOnly) return;
   layoutInset();
   placeInset(titleBottom);
   drawInset(g, T);
@@ -2558,6 +2652,316 @@ document.getElementById('btnCopy').onclick = async () => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
+// Animasjon: kameraet flyr inn til sluttbildet, og videoen eksporteres som MP4
+// ════════════════════════════════════════════════════════════════════════════
+// Kamera = { center: [lon, lat], scale, tilt, bearing }. Bare kameraet animeres; alt annet er som i kartet.
+// Videoen tegnes rute for rute med render() (RENDER_MODE), gjøres om til bilde som PNG-eksporten
+// og kodes med WebCodecs (H.264) i en MP4-fil (mp4-muxer lastes først når videoen lages).
+const ANIM_FPS = 30, ANIM_FADE = 0.8;
+const MP4_MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js';
+// Lengst ut automatisk start zoomer (omtrent bakgrunnskartets utstrekning).
+const ANIM_MAX_BOUNDS = [[-12, 50], [38, 76]];
+let ANIM_SHOWING = null;   // null = vanlig kart; 'fly' eller 'hold' = kartet viser en animasjonsrute
+let animPlayId = 0, animTau = null, animCancelled = false;
+
+const camNow = () => ({ center: S.view.center.slice(), scale: S.view.scale, tilt: S.tilt, bearing: S.bearing });
+const roundCam = c => ({ center: c.center.map(v => +v.toFixed(5)), scale: +c.scale.toFixed(2), tilt: Math.round(c.tilt), bearing: Math.round(c.bearing) });
+const wrapDeg = v => ((v % 360) + 540) % 360 - 180;
+const animEndCam = () => S.anim.end || camNow();
+// Kamera som viser et område i rammen, i gjeldende projeksjon (endrer ikke S).
+function camForBounds(b, bearing) {
+  const p = baseProjection().precision(0.2), m = Math.min(W(), H()) * 0.04;
+  p.fitExtent([[m, m], [W() - m, H() - m]], boundsToGeo(b));
+  return { center: p.invert([W() / 2, H() / 2]), scale: p.scale(), tilt: 0, bearing };
+}
+function animAutoStart() {
+  // Samme midtpunkt som sluttbildet, flatt og seks ganger lenger ut (men ikke lenger ut enn bakgrunnskartet).
+  const end = animEndCam(), min = camForBounds(ANIM_MAX_BOUNDS, end.bearing).scale;
+  return { center: end.center.slice(), scale: Math.min(end.scale, Math.max(min, end.scale / 6)), tilt: 0, bearing: end.bearing };
+}
+function animStartCam() {
+  const a = S.anim, m = /^p(\d+)$/.exec(a.start);
+  if (a.start === 'custom' && a.startView) return a.startView;
+  if (m && VIEW_PRESETS[+m[1]]) return camForBounds(VIEW_PRESETS[+m[1]].bounds, animEndCam().bearing);
+  return animAutoStart();
+}
+const animTimes = () => ({ fly: +S.anim.dur, hold: +S.anim.hold, total: +S.anim.dur + +S.anim.hold });
+
+// Kamerabanen: midtpunkt og zoom følger van Wijk-kurven (d3.interpolateZoom, «fly ut og dykk inn»),
+// vipping og rotasjon interpoleres ved siden av. «Sving» er ekstra rotasjon kameraet har ved start.
+function animPath() {
+  const a = S.anim, c0 = animStartCam(), c1 = animEndCam();
+  const pl = baseProjection().scale(1).translate([0, 0]);
+  const p0 = pl(c0.center), p1 = pl(c1.center);
+  const zi = d3.interpolateZoom.rho(0.2 + 2.3 * a.arc / 100)([p0[0], p0[1], W() / c0.scale], [p1[0], p1[1], W() / c1.scale]);
+  const turn = wrapDeg(c1.bearing - c0.bearing) + +a.swing;
+  return u => {
+    const [x, y, w] = zi(u);
+    const tu = a.tiltMode === 'late' ? d3.easeCubicInOut(Math.max(0, (u - 0.45) / 0.55)) : u;
+    return { center: pl.invert([x, y]), scale: W() / w, tilt: c0.tilt + (c1.tilt - c0.tilt) * tu, bearing: c1.bearing - (1 - u) * turn };
+  };
+}
+
+// Tegner kamera c uten å endre kartets lagrede utsnitt. Projeksjonen står igjen på c til neste vanlige tegning.
+function renderWithCamera(c, mode) {
+  const keep = { view: S.view, tilt: S.tilt, bearing: S.bearing };
+  S.view = { center: c.center, scale: c.scale }; S.tilt = c.tilt; S.bearing = c.bearing;
+  try {
+    setupProjection();
+    RENDER_MODE = mode;
+    render();
+  } finally {
+    RENDER_MODE = null;
+    Object.assign(S, keep);
+  }
+}
+// Andel (0–1) av etiketter og pynt som er tonet inn ved tidspunktet tau.
+function animAlpha(tau) {
+  const { fly, hold } = animTimes();
+  if (S.anim.labels !== 'fade' || tau < fly) return S.anim.labels === 'fade' ? 0 : 1;
+  return Math.min(1, (tau - fly) / Math.min(ANIM_FADE, hold));
+}
+// Viser kartet tau sekunder inn i animasjonen. draft = forenklet detalj (avspilling og draing).
+function drawAnimFrame(tau, draft = false, pathFn = null) {
+  const a = S.anim, { fly, total } = animTimes();
+  tau = Math.max(0, Math.min(total, tau));
+  const holding = tau >= fly, fade = a.labels === 'fade';
+  // Under holdet står kameraet stille: tegn én gang og ton bare inn etikettene.
+  if (!(holding && ANIM_SHOWING === 'hold')) {
+    const cam = holding ? animEndCam() : (pathFn || animPath())(d3.easeCubicInOut(tau / fly));
+    const mode = holding || !fade ? { labels: true, overlay: 'all', draft: draft && !holding }
+      : { labels: false, overlay: a.titleAlways ? 'title' : 'none', draft };
+    renderWithCamera(cam, mode);
+  }
+  ANIM_SHOWING = holding ? 'hold' : 'fly';
+  animTau = tau;
+  if (holding && fade) {
+    const al = animAlpha(tau).toFixed(3);
+    gLabels.attr('opacity', al);
+    svg.select('#gmarkers').attr('opacity', al);
+    gMap.selectAll('circle.citydot').attr('opacity', al);
+    gOverlay.selectChildren().attr('opacity', function () { return a.titleAlways && this.classList.contains('ttl') ? null : al; });
+  }
+  showAnimShade(t('Forhåndsvisning · klikk i kartet for å gå tilbake'));
+  syncAnimTime();
+}
+function showAnimShade(text, busy = false) {
+  $('animShadeText').textContent = text;
+  $('animShade').classList.add('show');
+  $('animShade').classList.toggle('busy', busy);
+}
+// Tilbake til det vanlige kartet (kalles av render()).
+function hideAnimFrame() {
+  stopAnimPlay();
+  ANIM_SHOWING = null; animTau = null;
+  $('animShade').classList.remove('show', 'busy');
+  setupProjection();
+  syncAnimTime();
+}
+function syncAnimTime() {
+  const { total } = animTimes(), tau = animTau == null ? total : animTau;
+  $('animScrub').value = Math.round(tau / total * 1000);
+  $('animTime').textContent = tau.toLocaleString(LOCALE(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' s';
+}
+
+function stopAnimPlay() {
+  if (!animPlayId) return;
+  cancelAnimationFrame(animPlayId); animPlayId = 0;
+  $('animPlay').textContent = t('▶ Forhåndsvis');
+}
+function playAnim() {
+  if (animPlayId) { stopAnimPlay(); return; }
+  const fn = animPath(), { total } = animTimes();
+  let t0 = null;
+  const step = now => {
+    if (t0 == null) t0 = now;
+    const tau = (now - t0) / 1000;
+    if (tau >= total) { animPlayId = 0; $('animPlay').textContent = t('▶ Forhåndsvis'); drawAnimFrame(total, false, fn); return; }
+    drawAnimFrame(tau, true, fn);
+    animPlayId = requestAnimationFrame(step);
+  };
+  ANIM_SHOWING = null;
+  animPlayId = requestAnimationFrame(step);
+  $('animPlay').textContent = t('■ Stopp');
+}
+
+// ── Video ──────────────────────────────────────────────────────────────────
+let muxerPromise = null;
+function loadMuxer() {
+  if (window.Mp4Muxer) return Promise.resolve();
+  if (!muxerPromise) muxerPromise = new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = MP4_MUXER_URL; el.onload = resolve;
+    el.onerror = () => { muxerPromise = null; el.remove(); reject(new Error(t('Kunne ikke laste videomodulen'))); };
+    document.head.appendChild(el);
+  });
+  return muxerPromise;
+}
+// Kartet slik det står i SVG-en, tegnet på et lerret (som PNG-eksporten). Video har ikke gjennomsiktighet,
+// så gjennomsiktig bakgrunn blir hvit.
+function rasterizeMap(ctx, w, h) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([exportSvgString()], { type: 'image/svg+xml;charset=utf-8' }));
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url); resolve();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(t('Kunne ikke tegne SVG'))); };
+    img.src = url;
+  });
+}
+// Videostørrelse: kortsiden = valgt oppløsning, i kartets format; partall og høyst 4096 px (H.264-grense).
+function videoSize() {
+  const r = +S.anim.res, wide = W() >= H();
+  let w = wide ? r * W() / H() : r, h = wide ? r : r * H() / W();
+  const k = Math.min(1, 4096 / Math.max(w, h));
+  return [Math.round(w * k / 2) * 2, Math.round(h * k / 2) * 2];
+}
+async function exportAnimVideo() {
+  if (!window.VideoEncoder || !window.VideoFrame) { toast(t('Nettleseren kan ikke lage video. Bruk en oppdatert Chrome, Edge, Safari eller Firefox.')); return; }
+  stopAnimPlay();
+  const [vw, vh] = videoSize();
+  const bitrate = Math.round(vw * vh * ANIM_FPS * 0.2);   // ca. 12 Mbit/s i 1080p
+  let codec = null;
+  for (const c of ['avc1.640034', 'avc1.4d0034', 'avc1.420034']) {
+    try {
+      const r = await VideoEncoder.isConfigSupported({ codec: c, width: vw, height: vh, bitrate, framerate: ANIM_FPS });
+      if (r.supported) { codec = c; break; }
+    } catch { /* prøv neste profil */ }
+  }
+  if (!codec) { toast(t('Nettleseren kan ikke lage MP4-video (H.264) i {0}×{1}', vw, vh)); return; }
+  try { await loadMuxer(); } catch (e) { toast(e.message); return; }
+
+  animCancelled = false;
+  document.body.classList.add('animbusy');
+  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: vw, height: vh, frameRate: ANIM_FPS }, fastStart: 'in-memory' });
+  let encErr = null;
+  const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encErr = e; } });
+  try {
+    enc.configure({ codec, width: vw, height: vh, bitrate, framerate: ANIM_FPS, avc: { format: 'avc' } });
+    const canvas = document.createElement('canvas'); canvas.width = vw; canvas.height = vh;
+    const ctx = canvas.getContext('2d');
+    const fn = animPath(), { fly, total } = animTimes(), n = Math.round(total * ANIM_FPS);
+    const dt = 1e6 / ANIM_FPS;
+    let lastKey = null;
+    ANIM_SHOWING = null;
+    for (let i = 0; i < n; i++) {
+      if (animCancelled) break;
+      if (encErr) throw encErr;
+      const tau = i / ANIM_FPS;
+      // Stillestående ruter på slutten (etter inntoningen) er like og tegnes bare én gang.
+      const key = tau < fly ? i : 'hold' + animAlpha(tau);
+      if (key !== lastKey) {
+        drawAnimFrame(tau, false, fn);
+        showAnimShade(t('Lager video … {0} %', Math.floor(i / n * 100)), true);
+        await rasterizeMap(ctx, vw, vh);
+        lastKey = key;
+      }
+      const frame = new VideoFrame(canvas, { timestamp: Math.round(i * dt), duration: Math.round(dt) });
+      enc.encode(frame, { keyFrame: i % (ANIM_FPS * 2) === 0 });
+      frame.close();
+      while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+    }
+    if (!animCancelled) {
+      showAnimShade(t('Lager video … {0} %', 100), true);
+      await enc.flush();
+      if (encErr) throw encErr;
+      muxer.finalize();
+      download(new Blob([muxer.target.buffer], { type: 'video/mp4' }), fileBase() + '.mp4');
+      toast(t('Videoen er lagret – sett den inn i PowerPoint med Sett inn → Video'));
+    }
+  } catch (e) {
+    toast(t('Videoen kunne ikke lages: {0}', e.message || e));
+  } finally {
+    if (enc.state !== 'closed') enc.close();
+    document.body.classList.remove('animbusy');
+    render();
+  }
+}
+
+// ── Panelet ────────────────────────────────────────────────────────────────
+function goToCam(c) {
+  S.view = { center: c.center.slice(), scale: c.scale };
+  S.tilt = Math.round(c.tilt); S.bearing = Math.round(wrapDeg(c.bearing));
+  $('tilt').value = S.tilt; $('tiltVal').textContent = S.tilt + '°';
+  $('bearing').value = S.bearing; $('bearingVal').textContent = S.bearing + '°';
+  setupProjection(); render();
+}
+function animChanged() {
+  syncAnimUI();
+  saveToUrl();
+  // Vises en rute, tegnes den på nytt med de nye innstillingene.
+  if (ANIM_SHOWING && !animPlayId) { const tau = Math.min(animTau, animTimes().total); ANIM_SHOWING = null; drawAnimFrame(tau); }
+}
+function buildAnimUI() {
+  const opts = [['auto', t('Automatisk')], ...VIEW_PRESETS.map((p, i) => ['p' + i, t(p.name)]), ['custom', t('Eget utsnitt')]];
+  $('animStart').innerHTML = opts.map(([v, n]) => `<option value="${v}">${esc(n)}</option>`).join('');
+  syncAnimUI();
+}
+function syncAnimUI() {
+  const a = S.anim, show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
+  $('animStart').value = a.start;
+  show('animStartCustom', a.start === 'custom');
+  $('animStartGo').disabled = !a.startView;
+  $('animEndInfo').textContent = a.end ? t('Låst utsnitt') : t('Følger kartet');
+  show('animEndGo', !!a.end);
+  // Med eget startutsnitt må slutten være låst, ellers blir start og slutt det samme.
+  show('animEndFree', !!a.end && a.start !== 'custom');
+  const fmt = (v, unit) => (+v).toLocaleString(LOCALE(), { maximumFractionDigits: 1 }) + unit;
+  for (const [id, key, unit] of [['animDur', 'dur', ' s'], ['animSwing', 'swing', '°'], ['animArc', 'arc', ''], ['animHold', 'hold', ' s']]) {
+    $(id).value = a[key]; $(id + 'Val').textContent = fmt(a[key], unit);
+  }
+  $('animLabels').value = a.labels; $('animTilt').value = a.tiltMode; $('animRes').value = a.res;
+  $('animTitle').checked = a.titleAlways;
+  show('animTitleRow', a.labels === 'fade');
+  syncAnimTime();
+}
+function initAnimControls() {
+  const a = () => S.anim;
+  $('animStart').onchange = () => {
+    const v = $('animStart').value;
+    if (v === 'custom') {
+      // Lås sluttbildet og vis starten, så den kan justeres og lagres med «Bruk nåværende utsnitt som start».
+      if (!a().end) a().end = roundCam(camNow());
+      if (!a().startView) a().startView = roundCam(animStartCam());
+      a().start = v; animChanged();
+      goToCam(a().startView);
+      toast(t('Kartet viser starten. Flytt det dit filmen skal starte, og trykk «Bruk nåværende utsnitt som start».'));
+      return;
+    }
+    a().start = v; animChanged();
+  };
+  $('animStartSet').onclick = () => {
+    if (ANIM_SHOWING) render();
+    a().startView = roundCam(camNow()); animChanged(); toast(t('Startpunktet er lagret'));
+  };
+  $('animStartGo').onclick = () => { if (a().startView) goToCam(a().startView); };
+  $('animEndSet').onclick = () => {
+    if (ANIM_SHOWING) render();
+    a().end = roundCam(camNow()); animChanged(); toast(t('Sluttpunktet er låst'));
+  };
+  $('animEndGo').onclick = () => { if (a().end) goToCam(a().end); };
+  $('animEndFree').onclick = () => { a().end = null; animChanged(); };
+  for (const [id, key] of [['animDur', 'dur'], ['animSwing', 'swing'], ['animArc', 'arc'], ['animHold', 'hold']]) {
+    $(id).oninput = () => { a()[key] = +$(id).value; animChanged(); };
+  }
+  $('animLabels').onchange = () => { a().labels = $('animLabels').value; animChanged(); };
+  $('animTilt').onchange = () => { a().tiltMode = $('animTilt').value; animChanged(); };
+  $('animRes').onchange = () => { a().res = +$('animRes').value; saveToUrl(); };
+  $('animTitle').onchange = () => { a().titleAlways = $('animTitle').checked; animChanged(); };
+  $('animPlay').onclick = playAnim;
+  const scrubTau = () => +$('animScrub').value / 1000 * animTimes().total;
+  $('animScrub').oninput = () => { stopAnimPlay(); drawAnimFrame(scrubTau(), true); };
+  $('animScrub').onchange = () => { ANIM_SHOWING = null; drawAnimFrame(scrubTau()); };
+  $('animExport').onclick = exportAnimVideo;
+  $('animCancel').onclick = ev => { ev.stopPropagation(); animCancelled = true; };
+  // Klikk i kartet mens en rute vises: tilbake til det vanlige kartet.
+  $('animShade').onclick = () => { if (!document.body.classList.contains('animbusy')) render(); };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Kontrollpanel
 // ════════════════════════════════════════════════════════════════════════════
 const $ = id => document.getElementById(id);
@@ -2929,6 +3333,7 @@ function syncFormatUI() {
 
 function syncAllControls() {
   syncFormatUI();
+  syncAnimUI();
   $('proj').value = S.proj;
   bindCheck('splitRole', () => S.splitRole, v => S.splitRole = v);
   bindCheck('labelsOnlySel', () => S.labelsOnlySel, v => S.labelsOnlySel = v);
@@ -3044,6 +3449,7 @@ function syncAllControls() {
 }
 
 function initStaticControls() {
+  initAnimControls();
   $('format').onchange = () => {
     const v = $('format').value;
     if (v === 'custom') { $('customsize').style.display = ''; return; }
@@ -3158,6 +3564,7 @@ function applyLanguage() {
   setMarkerAdd(MARKER_ADD);
   buildMarkerList();
   buildPresetButtons();
+  buildAnimUI();
   syncSelMode();
   buildLandList();
   buildLayerList();
