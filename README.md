@@ -25,7 +25,7 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
 - **Farger:** standardfargene følger en fast palett (magenta, oransje, grønn, blå, rød, gul og gråtoner).
   Paletten tilbys som forslag i alle fargevelgere, og «Tilbakestill farger til standardpaletten» under
   Kartlag setter alle farger tilbake uten å endre andre innstillinger.
-- **Bakgrunn:** vektorkart med kystlinje, dybdekurver, landegrenser, valg av hvilke land som vises (f.eks. bare Norge og Danmark), byer og kvadrant-/blokknett (kvadranter med eller uten nummer, valgfri farge og linjetykkelse).
+- **Bakgrunn:** vektorkart med kystlinje, havdybde (grovt: 200/1000/2000/3000 m, eller detaljert fra EMODnet: 20, 50, 100, 200, 500, 1000, 2000 og 3000 m), landegrenser, innsjøer og elver, byområder, valg av hvilke land som vises (f.eks. bare Norge og Danmark), byer (de faste stedene pluss valgfritt alle byer over 50 000, 250 000 eller 1 million innbyggere), gradnett med gradtall (automatisk eller fast avstand) og kvadrant-/blokknett (kvadranter med eller uten nummer, valgfri farge og linjetykkelse).
   Fire fargetemaer pluss egne farger, og transparent bakgrunn.
 - **Forstørrede felt:** felt kan forstørres opptil seks ganger rundt sitt eget midtpunkt, slik at små felt
   blir synlige i oversiktskart. Valgfritt også funn, og valgfritt bare valgte felt og funn.
@@ -105,6 +105,11 @@ mapshaper -i land.json borders.json d200.json d1000.json d2000.json d3000.json s
   combine-files -o basemap.json format=topojson quantization=100000
 ```
 
+Tilleggslagene `data/bathymetry.json` (havdybde), `data/landextra.json` (innsjøer, elver, byområder) og
+`data/places.json` (byer) lastes først når de slås på, og bygges for hånd med `build_basemap_extra.py`
+(krever numpy, rasterio og shapely). Havdybden er fra [EMODnet Bathymetry](https://emodnet.ec.europa.eu/en/bathymetry)
+(CC BY 4.0), supplert med NOAA ETOPO1 (public domain) øst for 43° Ø; resten er Natural Earth 10m.
+
 Sektorområdene (`sectorAreas`) for Norge, Storbritannia og Danmark er hvert lands blokknett (Sodir, NSTA og ENS) slått sammen
 (`mapshaper -i no.json uk.json dk.json combine-files snap snap-interval=0.0005 -merge-layers force -dissolve2 cc`).
 Sektorgrensene (`sectors`, med landene på hver side i `l`/`r`) er den delen av ett lands sektoromriss
@@ -130,6 +135,7 @@ python3 -m http.server 8000
 |---|---|
 | `index.html` | Hele Mapmaker. Én fil, vanilla JS med d3 og topojson-client fra CDN (og mp4-muxer ved videoeksport), ingen byggesteg |
 | `fetch_data.py` | Henter kartlagene fra Sodir, NSTA, Energistyrelsen, NLOG, EMODnet og Marine Institute og skriver `data/*.json` |
+| `build_basemap_extra.py` | Bygger havdybde, innsjøer/elver/byområder og byer til bakgrunnskartet (kjøres for hånd) |
 | `build_sectors.py` | Legger nederlandsk, tysk, irsk, fransk og belgisk sektor inn i `data/basemap.json` (kjøres for hånd) |
 | `data/` | Kartlagene (`fields`, `discoveries`, `licences`, `pipelines`, `facilities`, `quadrants`, og `wells` og `blocks`, som lastes først når de slås på), `companies.json` (juridiske navn → konsern), `meta.json` (dato og kilder) og det statiske bakgrunnskartet `basemap.json` |
 | `.github/workflows/update-data.yml` | Kjører `fetch_data.py` daglig 04:30 UTC og committer bare når dataene er endret |
