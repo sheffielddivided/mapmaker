@@ -1,5 +1,5 @@
 """
-Henter kartdata for norsk, britisk og dansk sokkel og lagrer dem som kompakte
+Henter kartdata for norsk, britisk, dansk, nederlandsk, tysk og irsk sokkel og lagrer dem som kompakte
 GeoJSON-filer under data/ for index.html (NCS Mapmaker):
 
 - Norge: Sodir (Norwegian Offshore Directorate) FactMaps
@@ -8,8 +8,12 @@ GeoJSON-filer under data/ for index.html (NCS Mapmaker):
   rørledninger, brønnresultater), supplert med GeoJSON bygget fra ENS sine
   shapefiler i github.com/sheffielddivided/ens (lisenser, brønner,
   innretninger, blokker, eierandeler og produksjon)
+- Nederland: NLOG (TNO for Ministerie van Economische Zaken) sin WFS (felt, lisenser,
+  brønner, innretninger)
+- Tyskland: EMODnet Human Activities (lisenser, letebrønner, plattformer)
+- Irland: Marine Institute (brønner, Corrib-røret) og EMODnet (lisenser, Corrib)
 
-Alle features får egenskapen cc ('no', 'uk' eller 'dk'), og selskapsnavn
+Alle features får egenskapen cc ('no', 'uk', 'dk', 'nl', 'de' eller 'ie'), og selskapsnavn
 normaliseres til konsernnavn (se GROUPS), slik at ett valg i selskapsfilteret
 dekker f.eks. både «Equinor Energy AS» og «EQUINOR UK LIMITED».
 
@@ -49,7 +53,8 @@ SIMPLIFY = 0.0005
 PRECISION = 4
 
 SOURCE = ('Sodir FactMaps (NLOD 2.0); NSTA Open Data (Open Government Licence v3.0); '
-          'Energistyrelsen via GEUS WFS og github.com/sheffielddivided/ens')
+          'Energistyrelsen via GEUS WFS og github.com/sheffielddivided/ens; NLOG (TNO/EZK); '
+          'EMODnet Human Activities; Marine Institute / Petroleum Affairs Division (CC BY 4.0)')
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -78,15 +83,15 @@ def nsta(service, layer=0):
     return f'{NSTA}/{urllib.parse.quote(service)}/FeatureServer/{layer}'
 
 
-def fetch(layer, out_fields, where='1=1', geometry=True):
-    """Henter alle rader fra et lag (Sodir-lagnummer eller full URL), paginert og sortert på OBJECTID."""
+def fetch(layer, out_fields, where='1=1', geometry=True, order='OBJECTID'):
+    """Henter alle rader fra et lag (Sodir-lagnummer eller full URL), paginert og sortert på id-feltet."""
     url = layer if isinstance(layer, str) else f'{BASE}/{layer}'
     rows, offset = [], 0
     while True:
         params = {
             'where': where,
             'outFields': ','.join(out_fields),
-            'orderByFields': 'OBJECTID',
+            'orderByFields': order,
             'resultOffset': offset,
             'resultRecordCount': PAGE_SIZE,
             'returnGeometry': 'true' if geometry else 'false',
@@ -761,21 +766,36 @@ def build_dk_licences():
     return out
 
 
+def dk_well_number(n):
+    """'5504/8-1' -> '5504/08-01', som i shapefilen (id-ene ligger i lagrede lenker og maler)."""
+    try:
+        quad, rest = n.split('/')
+        blk, num = rest.split('-')
+        # Løpenummer 0 brukes for flere brønner i samme blokk - da er navnet entydig.
+        return f'{quad}/{int(blk):02d}-{int(num):02d}' if int(num) else None
+    except (AttributeError, ValueError):
+        return None  # ufullstendig nummer (f.eks. '5604/22-'): bruk brønnnavnet
+
+
 def build_dk_wells():
     results = dk_well_results()
     out = []
     for f in ens('gis/wells.geojson')['features']:
         p = f['properties']
-        cls = (p.get('Classifica') or '').upper()
-        if p.get('Location') == 'ONSHORE' or not (cls.startswith('EXPLORATION') or cls.startswith('APPRAISAL')):
+        # ens byttet i nov. 2026 fra shapefilens feltnavn (Well_Numb, Classifica ...) til små bokstaver.
+        number = dk_well_number(p.get('number') or p.get('Well_Numb'))
+        name = p.get('name') or p.get('Well_Name')
+        cls = (p.get('classification') or p.get('Classifica') or '').upper()
+        if (p.get('location') or p.get('Location')) == 'ONSHORE' or not f.get('geometry') \
+                or not (cls.startswith('EXPLORATION') or cls.startswith('APPRAISAL')):
             continue
-        date = p.get('Comp_Date') or p.get('Spud_Date') or ''
+        date = p.get('comp_date') or p.get('spud_date') or p.get('Comp_Date') or p.get('Spud_Date') or ''
         out.append(feature(round_geom(f['geometry']), {
-            'id': 'dk-' + (p.get('Well_Numb') or p.get('Well_Name')), 'cc': 'dk',
-            'name': p.get('Well_Numb') or p.get('Well_Name'),
+            'id': 'dk-' + (number or name), 'cc': 'dk', 'name': number or name,
             'purpose': 'WILDCAT' if cls.startswith('EXPLORATION') else 'APPRAISAL',
-            'content': results.get((p.get('Well_Name') or '').upper()), 'status': None,
-            'op': p.get('Operator'), 'year': int(date[:4]) if date[:4].isdigit() else None, 'dsc': None, 'area': None,
+            'content': results.get((name or '').upper()), 'status': None,
+            'op': p.get('operator') or p.get('Operator'), 'year': int(date[:4]) if date[:4].isdigit() else None,
+            'dsc': None, 'area': None,
         }))
     return out
 
@@ -799,6 +819,315 @@ def build_dk_blocks():
             for f in ens('gis/blocks.geojson')['features']]
 
 
+# ── Sektortest (punkt i sektor) ─────────────────────────────────────────────
+# NLOG blander land og sokkel i samme lag, og EMODnet har med kystnære data. Vi avgjør
+# hva som er offshore ved å teste mot sektoromrissene (sectorAreas) i bakgrunnskartet.
+_sector_polys = None
+
+
+def sector_polys():
+    global _sector_polys
+    if _sector_polys is None:
+        with open(os.path.join(OUT_DIR, 'basemap.json'), encoding='utf-8') as fh:
+            topo = json.load(fh)
+        (sx, sy), (tx, ty) = topo['transform']['scale'], topo['transform']['translate']
+        arcs = []
+        for a in topo['arcs']:
+            x = y = 0
+            pts = []
+            for dx, dy in a:
+                x += dx
+                y += dy
+                pts.append((x * sx + tx, y * sy + ty))
+            arcs.append(pts)
+
+        def ring(idx):
+            pts = []
+            for i in idx:
+                p = arcs[i] if i >= 0 else arcs[~i][::-1]
+                pts += p if not pts else p[1:]
+            return pts
+        _sector_polys = {}
+        for g in topo['objects']['sectorAreas']['geometries']:
+            polys = [g['arcs']] if g['type'] == 'Polygon' else g['arcs']
+            _sector_polys[g['properties']['cc']] = [[ring(r) for r in p] for p in polys]
+    return _sector_polys
+
+
+def _in_ring(x, y, ring):
+    inside = False
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
+
+
+def in_sector(cc, geom):
+    """Ligger punktet (eller polygonets hjørnesnitt) i landets sektor?"""
+    if geom['type'] == 'Point':
+        x, y = geom['coordinates'][:2]
+    else:
+        ring = geom['coordinates'][0] if geom['type'] == 'Polygon' else geom['coordinates'][0][0]
+        x, y = sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
+    return any(_in_ring(x, y, p[0]) and not any(_in_ring(x, y, h) for h in p[1:])
+               for p in sector_polys().get(cc, []))
+
+
+# ── Nederlandsk sektor (NLOG) ───────────────────────────────────────────────
+NLOG_WFS = 'https://www.gdngeoservices.nl/geoserver/nlog/ows'
+EMODNET_WFS = 'https://ows.emodnet-humanactivities.eu/wfs'
+
+
+def wfs_json(url, typename, cql=None):
+    """Henter et WFS-lag som GeoJSON i WGS84 (GeoServer)."""
+    params = {'service': 'WFS', 'version': '2.0.0', 'request': 'GetFeature', 'typeNames': typename,
+              'outputFormat': 'application/json', 'srsName': 'EPSG:4326'}
+    if cql:
+        params['CQL_FILTER'] = cql
+    rows = _get(url, params)['features']
+    print(f'  {typename}: {len(rows)} rader')
+    return rows
+
+
+def _dp(pts, tol):
+    """Douglas-Peucker. ArcGIS-kildene forenkles på serveren (maxAllowableOffset); WFS gjør ikke det."""
+    if len(pts) < 3:
+        return pts
+    (x1, y1), (x2, y2) = pts[0], pts[-1]
+    dx, dy = x2 - x1, y2 - y1
+    norm = (dx * dx + dy * dy) ** 0.5
+    best, idx = -1, 0
+    for i in range(1, len(pts) - 1):
+        px, py = pts[i]
+        d = abs(dy * (px - x1) - dx * (py - y1)) / norm if norm else ((px - x1) ** 2 + (py - y1) ** 2) ** 0.5
+        if d > best:
+            best, idx = d, i
+    if best <= tol:
+        return [pts[0], pts[-1]]
+    return _dp(pts[:idx + 1], tol)[:-1] + _dp(pts[idx:], tol)
+
+
+def _simplify_ring(ring):
+    out = _dp(ring, SIMPLIFY)
+    return out if len(out) >= 4 else ring
+
+
+def lonlat(g):
+    """GeoServer svarer med lengde/bredde for EPSG:4326 i GeoJSON; forenkle, rund av og dropp z."""
+    if not g or not g.get('coordinates'):
+        return None
+    g = round_geom(g)
+    t, c = g['type'], g['coordinates']
+    if t == 'Polygon':
+        g['coordinates'] = [_simplify_ring(r) for r in c]
+    elif t == 'MultiPolygon':
+        g['coordinates'] = [[_simplify_ring(r) for r in p] for p in c]
+    elif t in ('LineString', 'MultiLineString'):
+        g['coordinates'] = _dp(c, SIMPLIFY) if t == 'LineString' else [_dp(l, SIMPLIFY) for l in c]
+    return g
+
+
+def year(value):
+    s = str(value or '')[:4]
+    return int(s) if s.isdigit() else None
+
+
+NL_FIELD_STATUS = {'W': 'Producing', 'U': 'Shut down', 'A': 'Shut down', 'T': 'Shut down'}
+NL_HC = {'Gas': 'GAS', 'Olie': 'OIL', 'Olie en Gas': 'OIL/GAS'}
+_nl_fields_cache = []
+
+
+def nl_fields_raw():
+    if not _nl_fields_cache:
+        _nl_fields_cache.extend(r for r in wfs_json(NLOG_WFS, 'nlog:gdw_ng_field_utm')
+                                if r['properties'].get('LANDSEA') == 'Sea' and r.get('geometry'))
+    return _nl_fields_cache
+
+
+def nl_field_props(p, status):
+    return {'id': 'nl-' + slug(p['FIELD_CODE']), 'cc': 'nl', 'name': p['FIELD_NAME'] or p['FIELD_CODE'],
+            'status': status, 'hc': NL_HC.get(p['HYDROCARBON_MINERAL']), 'op': p['OPERATOR'],
+            'year': year(p['DISCOVERY_YEAR']), 'area': None, 'lic': []}
+
+
+def build_nl_fields():
+    return [feature(lonlat(r['geometry']), nl_field_props(r['properties'], NL_FIELD_STATUS[r['properties']['STATUS']]))
+            for r in nl_fields_raw() if r['properties']['STATUS'] in NL_FIELD_STATUS]
+
+
+def build_nl_discoveries():
+    """Uutbygde felt (NP<5 og NP>5: produksjonsstart innen eller om mer enn fem år) vises som funn."""
+    return [feature(lonlat(r['geometry']), nl_field_props(r['properties'], 'Undeveloped'))
+            for r in nl_fields_raw() if r['properties']['STATUS'] in ('NP<5', 'NP>5')]
+
+
+def build_nl_licences():
+    out = []
+    for r in wfs_json(NLOG_WFS, 'nlog:gdw_ng_licence_utm'):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        if (not g or p['PRODUCT'] != 'HYDROCARBONS' or p['TYPE'] not in ('PRD', 'EXP')
+                or p['STATUS'] not in ('EFFECTIVE', 'EXTENDED', 'EXTENDEDWVA') or not in_sector('nl', g)):
+            continue
+        out.append(feature(g, {
+            'id': 'nl-' + slug(p['LICENCE_AREA_CODE'] or p['LICENCE_CODE']), 'cc': 'nl', 'name': p['LICENCE_NAME'],
+            # NLOG-tjenesten oppgir ikke rettighetshavere eller operatør for lisensene.
+            'op': None, 'phase': 'Production' if p['TYPE'] == 'PRD' else 'Exploration', 'area': None, 'lic': [],
+        }))
+    return out
+
+
+NL_WELL_CONTENT = {'GAS': 'GAS', 'OIL': 'OIL', 'OAG': 'OIL/GAS', 'DRY': 'DRY', 'WTR': 'WATER', 'GSS': 'GAS SHOWS',
+                   'OLS': 'OIL SHOWS', 'GOS': 'OIL/GAS SHOWS', 'GWOS': 'GAS', 'OWGS': 'OIL'}
+
+
+def build_nl_wells():
+    out = []
+    for r in wfs_json(NLOG_WFS, 'nlog:gdw_ng_wll_all_utm',
+                      "ON_OFFSHORE_CODE='OFF' AND BOREHOLE_OR_SIDETRACK_CODE='BRH' "
+                      "AND BOREHOLE_TYPE_CODE IN ('EXP-HC','EXP','EVA-HC')"):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        if not g:
+            continue
+        out.append(feature(g, {
+            'id': 'nl-' + slug(p['BOREHOLE_CODE']), 'cc': 'nl', 'name': p['BOREHOLE_CODE'],
+            'purpose': 'APPRAISAL' if p['BOREHOLE_TYPE_CODE'] == 'EVA-HC' else 'WILDCAT',
+            'content': NL_WELL_CONTENT.get(p['BOREHOLE_RESULT_CODE']), 'status': p['STATUS'],
+            'op': p['ORIGINAL_OPERATOR'], 'year': year(p['END_DATE_DRILLING']) or year(p['START_DATE_DRILLING']),
+            'dsc': p['FIELD_NAME'], 'area': None,
+        }))
+    return out
+
+
+def build_nl_facilities():
+    out = []
+    for r in wfs_json(NLOG_WFS, 'nlog:GDW_NG_FACILITY_UTM', "STATUS_CODE='USE'"):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        if not g or g['type'] != 'Point' or p['FACILITY_TYPE_CODE'] not in ('PLF', 'PST', 'SUB', 'TML', 'OLT') \
+                or not in_sector('nl', g):
+            continue
+        out.append(feature(g, {
+            'id': 'nl-' + slug(p['FACILITY_CODE'] or p['FACILITY_NAME']), 'cc': 'nl', 'name': p['FACILITY_NAME'],
+            'kind': p['FACILITY_TYPE_DESCRIPTION'], 'cls': 'subsea' if p['FACILITY_TYPE_CODE'] == 'SUB' else 'surface',
+            'phase': 'IN SERVICE', 'field': None, 'op': p['OPERATOR'],
+        }))
+    return out
+
+
+# ── Tysk sektor (EMODnet Human Activities) ──────────────────────────────────
+# Tysk sokkel har bare to produserende områder (Mittelplate i Vadehavet og A6-A i
+# «Andenebbet»). Det finnes ingen åpne feltavgrensninger; lisenser, brønner og
+# innretninger hentes fra EMODnet. Rørledningene i tysk sektor (Norpipe, Europipe,
+# Zeepipe, Franpipe) ligger allerede i Sodirs rørlag.
+DE_WELL_CONTENT = {'Dry': 'DRY', 'Crude Oil': 'OIL', 'Natural Gas': 'GAS'}
+
+
+def emodnet_licences(cc, country):
+    """Lisenser fra EMODnet som ikke har utløpt (EMODnet kaller laget «active», men har med utløpte)."""
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    out = []
+    for r in wfs_json(EMODNET_WFS, 'emodnet:activelicenses', f"country='{country}'"):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        if not g or (p.get('validto') and p['validto'][:10] < today) or not in_sector(cc, g):
+            continue
+        ops = [o.strip() for o in (p.get('operator') or '').replace(' und ', ';').split(';') if o.strip()]
+        out.append(feature(g, {
+            'id': f'{cc}-' + slug(p['code'] or p['name']), 'cc': cc, 'name': p['name'], 'op': ops[0] if ops else None,
+            'phase': p.get('type'), 'area': None, 'lic': [],
+        }))
+    return out
+
+
+def build_de_licences():
+    return emodnet_licences('de', 'Germany')
+
+
+def build_de_wells():
+    out = []
+    for r in wfs_json(EMODNET_WFS, 'emodnet:hydrocarbons', "country='Germany' AND purpose='Exploration'"):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        # Sidesteg har samme kode med høyere løpenummer på slutten.
+        if not g or not str(p.get('code') or '').endswith('01') or not in_sector('de', g):
+            continue
+        out.append(feature(g, {
+            'id': 'de-' + p['code'], 'cc': 'de', 'name': p['name'], 'purpose': 'WILDCAT',
+            'content': DE_WELL_CONTENT.get(p.get('content')), 'status': p.get('status'), 'op': p.get('operator'),
+            'year': year(p.get('year')), 'dsc': None, 'area': None,
+        }))
+    return out
+
+
+def build_de_facilities():
+    out, seen = [], set()
+    for r in wfs_json(EMODNET_WFS, 'emodnet:platforms', "country='Germany'"):
+        p, g = r['properties'], lonlat(r.get('geometry'))
+        if not g or p.get('current_status') != 'Operational' or p['name'] in seen:
+            continue
+        seen.add(p['name'])
+        out.append(feature(g, {
+            'id': 'de-' + slug(p['name']), 'cc': 'de', 'name': p['name'], 'kind': p.get('category'),
+            'cls': 'surface', 'phase': 'IN SERVICE', 'field': None, 'op': p.get('operator'),
+        }))
+    return out
+
+
+# ── Irsk sektor (Marine Institute og EMODnet) ───────────────────────────────
+# Marine Institute publiserer Petroleum Affairs Division sine brønner og rør (CC BY 4.0).
+# Brønnlisten går til 2019. Det finnes ingen åpne feltavgrensninger; Corrib er eneste felt
+# i produksjon, og Kinsale-området (Kinsale Head, Ballycotton, Seven Heads) stengte i 2020.
+IE_ENERGY = 'https://basemap.marine.ie/arcgis/rest/services/Physical/OffshoreEnergy/FeatureServer'
+IE_WELL_CONTENT = {
+    'Gas Producer': 'GAS', 'Suspended Gas Well': 'GAS', 'P & A Gas Well': 'GAS',
+    'P & A Oil Well': 'OIL', 'Suspended Oil Well': 'OIL', 'P & A Oil & Gas Well': 'OIL/GAS',
+    # Plugget uten funn («med eller uten spor eller ikke testet»): regnes som tørr, slik EMODnet gjør.
+    'P & A with/without shows or untested pay': 'DRY',
+}
+
+
+def build_ie_licences():
+    return emodnet_licences('ie', 'Ireland')
+
+
+def build_ie_wells():
+    out = []
+    for r in fetch(f'{IE_ENERGY}/7', ['WELL_NO_', 'WELL_CLASS', 'WELL_STATU', 'OPERATOR', 'SPUD_DATE', 'RIG_RELEAS'],
+                   order='ID'):
+        p, g = r['properties'], r.get('geometry')
+        if not (g or {}).get('coordinates'):
+            continue
+        name = (p['WELL_NO_'] or '').strip()
+        out.append(feature(round_geom(g), {
+            'id': 'ie-' + name, 'cc': 'ie', 'name': name,
+            'purpose': 'APPRAISAL' if (p['WELL_CLASS'] or '').startswith('Appraisal') else 'WILDCAT',
+            'content': IE_WELL_CONTENT.get(p['WELL_STATU']), 'status': p['WELL_STATU'], 'op': p['OPERATOR'],
+            'year': year(p['RIG_RELEAS']) or year(p['SPUD_DATE']), 'dsc': None, 'area': None,
+        }))
+    return out
+
+
+def build_ie_pipelines():
+    # Bare Corrib er i drift; Kinsale-rørene er stengt, og gassrørene fra Skottland (ICPL) ligger i NSTA-laget.
+    lines = [round_geom(r['geometry'])['coordinates'] for r in
+             fetch(f'{IE_ENERGY}/8', ['FROM_LOC'], "COUNTRY_CO = 'IE' AND FROM_LOC = 'Corrib'") if r.get('geometry')]
+    if not lines:
+        return []
+    return [feature({'type': 'MultiLineString', 'coordinates': lines}, {
+        'id': 'ie-corrib', 'cc': 'ie', 'name': 'Corrib', 'label': None, 'medium': 'Gas', 'phase': 'IN SERVICE',
+        'dim': 20.0, 'op': 'Vermilion', 'from': 'Corrib', 'to': 'Bellanaboy',
+    })]
+
+
+def build_ie_facilities():
+    # EMODnet har Corrib som «Decommissioned» med Shell som operatør (utdatert): feltet er en
+    # havbunnsutbygging i produksjon, operert av Vermilion. Kinsale-plattformene er tatt ned.
+    out = []
+    for r in wfs_json(EMODNET_WFS, 'emodnet:platforms', "country='Ireland' AND name='Corrib'"):
+        g = lonlat(r.get('geometry'))
+        if g:
+            out.append(feature(g, {'id': 'ie-corrib', 'cc': 'ie', 'name': 'Corrib', 'kind': 'SUBSEA TEMPLATE',
+                                   'cls': 'subsea', 'phase': 'IN SERVICE', 'field': 'Corrib', 'op': 'Vermilion'}))
+    return out[:1]
+
+
 # ── Hjelpere ────────────────────────────────────────────────────────────────
 def slug(value):
     return ''.join(c if c.isalnum() else '-' for c in str(value).lower()).strip('-')
@@ -819,23 +1148,26 @@ GROUPS = [
     ('Petoro', ['petoro']), ('TotalEnergies', ['totalenergies', 'total e&p', 'total ep', 'total ']),
     ('ConocoPhillips', ['conocophillips']), ('Harbour Energy', ['harbour', 'chrysaor', 'premier oil']), ('INEOS', ['ineos']),
     ('Shell', ['shell', 'a/s norske shell']), ('BP', ['bp ', 'britoil', 'amoco']), ('ExxonMobil', ['exxonmobil', 'esso', 'mobil ']),
-    ('DNO', ['dno']), ('OKEA', ['okea']), ('ORLEN', ['orlen', 'pgnig']), ('Wintershall Dea', ['wintershall']),
+    ('DNO', ['dno']), ('OKEA', ['okea']), ('ORLEN', ['orlen', 'pgnig']), ('Wintershall Dea', ['wintershall', 'rwe-dea', 'rwe dea', 'win ']),
     ('OMV', ['omv']), ('INPEX Idemitsu', ['inpex', 'idemitsu']), ('Repsol', ['repsol']), ('Sval Energi', ['sval']),
-    ('Neptune Energy', ['neptune']), ('Chevron', ['chevron']), ('CNOOC', ['cnooc', 'nexen']),
+    ('Neptune Energy', ['neptune', 'gdf production', 'gdfp ']), ('Chevron', ['chevron']), ('CNOOC', ['cnooc', 'nexen']),
     ('Ithaca Energy', ['ithaca']), ('Serica Energy', ['serica']), ('EnQuest', ['enquest']), ('Apache', ['apache', 'apa ']),
-    ('Perenco', ['perenco']), ('TAQA', ['taqa']), ('Spirit Energy', ['spirit energy']), ('Dana Petroleum', ['dana petroleum']),
+    ('Perenco', ['perenco']), ('TAQA', ['taqa']), ('Spirit Energy', ['spirit energy', 'spirit ']), ('Dana Petroleum', ['dana petroleum', 'dana ']),
     ('NEO NEXT', ['neo next', 'neo energy']), ('CNR International', ['cnr international', 'canadian natural']),
     ('Eni', ['eni ', 'eni uk']), ('Hess', ['hess']), ('Kufpec', ['kufpec']), ('Japex', ['japex']),
     ('Lime Petroleum', ['lime petroleum']), ('Concedo', ['concedo']), ('Petrolia', ['petrolia']),
     ('BlueNord', ['bluenord', 'noreco', 'norwegian energy']), ('Nordsøfonden', ['nordsøfonden', 'nordsofonden']),
     ('Danoil', ['danoil']), ('Adura', ['adura']), ('Hibiscus', ['hibiscus', 'anasuria']), ('Energean', ['energean']),
     ('Tailwind', ['tailwind']), ('Waldorf', ['waldorf']), ('Viaro', ['viaro', 'rockrose']), ('Tullow', ['tullow']), ('Jersey Oil & Gas', ['jersey oil']),
-    ('Kistos', ['kistos']), ('Centrica', ['centrica']), ('One-Dyas', ['one-dyas', 'one dyas']),
+    ('Kistos', ['kistos']), ('Centrica', ['centrica']), ('One-Dyas', ['one-dyas', 'one dyas', 'one ']),
+    ('NAM', ['nederlandse aardolie', 'nam ']), ('Petronas', ['petronas', 'pse ']), ('Tenaz Energy', ['tenaz']), ('Petrogas', ['petrogas']),
+    ('EBN', ['energie beheer nederland', 'ebn ']), ('NGT', ['ngt ', 'noordgastransport']),
     ('Pandion Energy', ['pandion']), ('M Vest Energy', ['m vest']), ('Longboat', ['longboat']),
     ('Source Energy', ['source energy']), ('Vermilion', ['vermilion']), ('Mitsui', ['mitsui']), ('Sumitomo', ['sumitomo']),
 ]
 _LEGAL = {'as', 'asa', 'a/s', 'aps', 'ab', 'limited', 'ltd', 'ltd.', 'plc', 'b.v.', 'bv', 'gmbh', 's.a.', 'inc', 'inc.',
-          'norge', 'norway', 'uk', '(uk)', 'u.k.', '(u.k.)', 'danmark', 'denmark', 'corporation', 'company', 'group'}
+          'norge', 'norway', 'uk', '(uk)', 'u.k.', '(u.k.)', 'danmark', 'denmark', 'corporation', 'company', 'group',
+          'nederland', 'netherlands', 'ireland', '(ireland)', 'noordzee', 'deutschland', 'germany', 'b.', 'v.', 'b.v'}
 
 
 def group(name):
@@ -846,9 +1178,11 @@ def group(name):
         if any(low.startswith(px) for px in prefixes):
             return display
     # Ukjent selskap: fjern juridiske endelser og landnavn, og pynt STORE BOKSTAVER.
-    words = name.strip().split()
-    while len(words) > 1 and words[-1].lower() in _LEGAL:
+    words = name.strip().rstrip(',').split()
+    # «Union Oil Company of the Netherlands» beholder landnavnet; ellers blir det «... of the».
+    while len(words) > 1 and words[-1].lower() in _LEGAL and words[-2].lower() not in ('of', 'the'):
         words.pop()
+    words[-1] = words[-1].rstrip(',')
     out = ' '.join(words)
     return title(out) if out.isupper() else out
 
@@ -914,12 +1248,17 @@ def main():
     baa_lic = baa_licensees()
 
     layers = {
-        'fields': {'no': build_fields, 'uk': build_uk_fields, 'dk': build_dk_fields},
-        'discoveries': {'no': lambda: build_discoveries(prl_lic, baa_lic), 'uk': build_uk_discoveries},
-        'licences': {'no': lambda: build_licences(prl_lic), 'uk': build_uk_licences, 'dk': build_dk_licences},
-        'wells': {'no': build_wells, 'uk': build_uk_wells, 'dk': build_dk_wells},
-        'pipelines': {'no': build_pipelines, 'uk': build_uk_pipelines, 'dk': build_dk_pipelines},
-        'facilities': {'no': build_facilities, 'uk': build_uk_facilities, 'dk': build_dk_facilities},
+        'fields': {'no': build_fields, 'uk': build_uk_fields, 'dk': build_dk_fields, 'nl': build_nl_fields},
+        'discoveries': {'no': lambda: build_discoveries(prl_lic, baa_lic), 'uk': build_uk_discoveries,
+                        'nl': build_nl_discoveries},
+        'licences': {'no': lambda: build_licences(prl_lic), 'uk': build_uk_licences, 'dk': build_dk_licences,
+                     'nl': build_nl_licences, 'de': build_de_licences, 'ie': build_ie_licences},
+        'wells': {'no': build_wells, 'uk': build_uk_wells, 'dk': build_dk_wells, 'nl': build_nl_wells,
+                  'de': build_de_wells, 'ie': build_ie_wells},
+        'pipelines': {'no': build_pipelines, 'uk': build_uk_pipelines, 'dk': build_dk_pipelines,
+                      'ie': build_ie_pipelines},
+        'facilities': {'no': build_facilities, 'uk': build_uk_facilities, 'dk': build_dk_facilities,
+                       'nl': build_nl_facilities, 'de': build_de_facilities, 'ie': build_ie_facilities},
         'quadrants': {'no': build_quadrants, 'uk': build_uk_quadrants},
         'blocks': {'no': build_blocks, 'uk': build_uk_blocks, 'dk': build_dk_blocks},
     }

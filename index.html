@@ -319,6 +319,9 @@
         <label class="row"><input type="checkbox" id="secNo" /> Norge</label>
         <label class="row"><input type="checkbox" id="secUk" /> Storbritannia</label>
         <label class="row"><input type="checkbox" id="secDk" /> Danmark</label>
+        <label class="row"><input type="checkbox" id="secNl" /> Nederland</label>
+        <label class="row"><input type="checkbox" id="secDe" /> Tyskland</label>
+        <label class="row"><input type="checkbox" id="secIe" /> Irland</label>
         <label class="row"><input type="checkbox" id="secLines" /> Sektorgrenser</label>
         <label class="row"><input type="checkbox" id="showQuads" /> Kvadranter
           <label class="lbl" style="margin-left:auto" title="Vis kvadrantnummer"><input type="checkbox" id="showQuadLabels" /> Nummer</label>
@@ -558,7 +561,9 @@ const FONT = 'Arial, Helvetica, sans-serif';
 const DATA_FILES = ['fields', 'discoveries', 'licences', 'pipelines', 'facilities', 'quadrants'];
 // Store lag som lastes først når de slås på.
 const LAZY_FILES = ['wells', 'blocks'];
-const SECTORS = { no: 'Norge', uk: 'Storbritannia', dk: 'Danmark' };
+const SECTORS = { no: 'Norge', uk: 'Storbritannia', dk: 'Danmark', nl: 'Nederland', de: 'Tyskland', ie: 'Irland' };
+// Navn langs sektorgrensene. Frankrike og Belgia har bare grensene (ingen kartdata), og derfor ikke noe sektorvalg.
+const SECTOR_NAMES = { ...SECTORS, fr: 'Frankrike', be: 'Belgia' };
 // Land med landegrenser innenfor bakgrunnskartet (ISO 3166-1 alfa-3, som i Natural Earth).
 const COUNTRIES = {
   NOR: 'Norge', SWE: 'Sverige', FIN: 'Finland', RUS: 'Russland', DNK: 'Danmark', DEU: 'Tyskland', NLD: 'Nederland',
@@ -606,7 +611,7 @@ const DSC_STATUS = {
   'Production likely but unclarified': 'Utvinning sannsynlig, men uavklart',
   'Production not evaluated': 'Utvinning ikke evaluert',
   'Production is unlikely': 'Utvinning lite sannsynlig',
-  'Undeveloped': 'Uutbygd funn (UK)',
+  'Undeveloped': 'Uutbygd funn (UK/NL)',
 };
 const FLD_STATUS = { 'Producing': 'I produksjon', 'Shut down': 'Nedstengt', 'Approved for production': 'Godkjent for utbygging (PUD)' };
 
@@ -630,6 +635,7 @@ const CITIES = [
   ['Kristiansund', 7.73, 63.11, 'NOR'], ['Trondheim', 10.40, 63.43, 'NOR'], ['Sandnessjøen', 12.63, 66.02, 'NOR'], ['Bodø', 14.40, 67.28, 'NOR'],
   ['Harstad', 16.54, 68.80, 'NOR'], ['Tromsø', 18.96, 69.65, 'NOR'], ['Hammerfest', 23.68, 70.66, 'NOR'], ['Kirkenes', 30.05, 69.73, 'NOR'],
   ['Longyearbyen', 15.63, 78.22, 'NOR'], ['Aberdeen', -2.10, 57.15, 'GBR'], ['Lerwick', -1.15, 60.15, 'GBR'], ['Esbjerg', 8.45, 55.47, 'DNK'],
+  ['Den Helder', 4.76, 52.96, 'NLD'], ['Emden', 7.21, 53.37, 'DEU'], ['Cork', -8.47, 51.90, 'IRL'], ['Galway', -9.05, 53.27, 'IRL'],
   ['Kristiansand', 7.99, 58.15, 'NOR'], ['Haugesund', 5.27, 59.41, 'NOR'], ['Ålesund', 6.15, 62.47, 'NOR'], ['Murmansk', 33.08, 68.97, 'RUS'],
 ];
 
@@ -642,6 +648,8 @@ const VIEW_PRESETS = [
   { name: 'Nordlige Nordsjø', bounds: [[1.8, 59.3], [5.5, 62]] },
   { name: 'Norskehavet', bounds: [[4.5, 62], [14, 67.5]] },
   { name: 'Barentshavet', bounds: [[16, 70], [37, 74.5]] },
+  { name: 'Sørlige Nordsjø', bounds: [[0, 52.6], [9, 56.2]] },
+  { name: 'Irland', bounds: [[-16, 50.3], [-4.5, 56.2]] },
 ];
 
 // Lagdefinisjoner. "company" = lag som påvirkes av selskapsfilteret.
@@ -777,8 +785,8 @@ const EN = {
   'Tilbake til standardfarger': 'Back to default colours', 'Landnavn i miniatyrkartet': 'Country names in the inset map',
   'Sektorer': 'Sectors', 'Norge': 'Norway', 'Storbritannia': 'United Kingdom', 'Danmark': 'Denmark', 'Sektorgrenser': 'Sector boundaries',
   'Danske data har ikke funn, felt mangler hydrokarbontype, og brønnene går til 2019.': 'Danish data has no discoveries, fields lack hydrocarbon type, and wells end in 2019.',
-  'Hele Nordsjøen': 'Entire North Sea', 'Sentrale Nordsjø': 'Central North Sea', 'Vest for Shetland': 'West of Shetland',
-  'Uutbygd funn (UK)': 'Undeveloped discovery (UK)', 'Flerfase': 'Multiphase', 'Sektor': 'Sector', 'Kilde': 'Source',
+  'Hele Nordsjøen': 'Entire North Sea', 'Sentrale Nordsjø': 'Central North Sea', 'Sørlige Nordsjø': 'Southern North Sea', 'Vest for Shetland': 'West of Shetland',
+  'Uutbygd funn (UK/NL)': 'Undeveloped discovery (UK/NL)', 'Flerfase': 'Multiphase', 'Sektor': 'Sector', 'Kilde': 'Source',
   'Sokkeldirektoratet (NLOD)': 'Norwegian Offshore Directorate (NLOD)', 'Energistyrelsen': 'Danish Energy Agency', 'data per {0}': 'data as of {0}', 'Lastet «{0}»': 'Loaded “{0}”', 'Slette malen «{0}»?': 'Delete the template “{0}”?',
   'kart': 'map',
   // Animasjon
@@ -869,7 +877,7 @@ function defaultState() {
     colorByHC: false,
     licStyle: 'outline', licOpacity: 1,
     dscStatus: ['Production in clarification phase', 'Production likely but unclarified', 'Production not evaluated', 'Undeveloped'],
-    sectors: { no: true, uk: true, dk: true }, sectorLines: true,
+    sectors: { no: true, uk: true, dk: true, nl: true, de: true, ie: true }, sectorLines: true,
     sectorColor: null, sectorWidth: 1.4, sectorDash: true, sectorLabels: false, sectorLabelPos: 50,
     inset: false, insetPos: 'bl', insetXY: null, insetArea: 'auto', insetMarker: 'rect', insetSize: 24, insetWidth: 'size', insetLand: null, insetMarkerColor: PAL.magenta, insetLabels: true,
     wells: { wildcat: true, appraisal: true, from: CURRENT_YEAR - 10, to: CURRENT_YEAR, classes: Object.keys(WELL_CLASSES), colorByContent: true },
@@ -981,7 +989,7 @@ async function loadData() {
       });
     }
   }
-  COMPANIES = [...counts].map(([name, n]) => ({ name, n, cc: ['no', 'uk', 'dk'].filter(c => ccs.get(name).has(c)) }))
+  COMPANIES = [...counts].map(([name, n]) => ({ name, n, cc: Object.keys(SECTORS).filter(c => ccs.get(name).has(c)) }))
     .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'no'));
   // Eldre lenker og maler kan inneholde juridiske selskapsnavn («Aker BP ASA»); oversett til konsernnavn.
   const aliases = await loadJSON('data/companies.json').catch(() => ({}));
@@ -2082,7 +2090,7 @@ function drawSectorLabels(T, obstacles) {
       if (inside(q) && !blocked(q)) run.push(q);
       flush();
     }
-    const names = [t(SECTORS[l]), t(SECTORS[r])];
+    const names = [t(SECTOR_NAMES[l]), t(SECTOR_NAMES[r])];
     const need = Math.max(...names.map(n => textWidth(n, fs))) * 1.2 + 20;
     if (!best || best.len < need) continue;
     // Punktet midt på den synlige delen, og retningen der.
@@ -2261,6 +2269,9 @@ function drawOverlay(T, titleOnly = false) {
     if (S.sectors.no) src.push(t('Sokkeldirektoratet (NLOD)'));
     if (S.sectors.uk) src.push('NSTA (OGL)');
     if (S.sectors.dk) src.push(t('Energistyrelsen'));
+    if (S.sectors.nl) src.push('NLOG');
+    if (S.sectors.de || S.sectors.ie) src.push('EMODnet');
+    if (S.sectors.ie) src.push('Marine Institute');
     const txt = `${t('Kilde')}: ${src.join(', ')}${META.updated ? ', ' + t('data per {0}', fmtDate(META.updated)) : ''} · Natural Earth`;
     g.append('text').attr('x', w - 8).attr('y', h - 7).attr('text-anchor', 'end').attr('font-family', FONT).attr('font-size', 12)
       .attr('fill', ink).attr('fill-opacity', 0.65).text(txt);
@@ -3398,6 +3409,9 @@ function syncAllControls() {
   bindCheck('secNo', () => S.sectors.no, v => S.sectors.no = v);
   bindCheck('secUk', () => S.sectors.uk, v => S.sectors.uk = v);
   bindCheck('secDk', () => S.sectors.dk, v => S.sectors.dk = v);
+  bindCheck('secNl', () => S.sectors.nl, v => S.sectors.nl = v);
+  bindCheck('secDe', () => S.sectors.de, v => S.sectors.de = v);
+  bindCheck('secIe', () => S.sectors.ie, v => S.sectors.ie = v);
   bindCheck('secLines', () => S.sectorLines, v => S.sectorLines = v);
   bindCheck('secDash', () => S.sectorDash, v => S.sectorDash = v);
   bindCheck('secLabels', () => S.sectorLabels, v => S.sectorLabels = v);
