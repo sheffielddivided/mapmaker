@@ -2,7 +2,7 @@
 
 **Live:** https://map.kbak.no/
 
-Lager egendefinerte kart over norsk, britisk, dansk, nederlandsk og tysk sokkel til PowerPoint-presentasjoner.
+Lager egendefinerte kart over norsk, britisk, dansk, nederlandsk, tysk og irsk sokkel til PowerPoint-presentasjoner.
 
 Innstillingene ligger i fire faner: **Innhold** (kartlag, selskap/portefølje), **Kart** (utsnitt, bakgrunn,
 sektorer og rutenett, forstørrede felt, 3D), **Tekst og pynt** (tittel, tegnforklaring, miniatyrkart,
@@ -12,7 +12,8 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
 - **Kartlag:** felt i produksjon, felt under utbygging, nedstengte felt, funn, aktive lisenser (stiplet eller heltrukket omriss, eller helfarge uten omriss),
   transportrørledninger (filtrert på medium, valgfritt bare de som er knyttet til valgt selskap/portefølje,
   med etiketter langs røret), innretninger og letebrønner (filtrert på år, formål og resultat).
-- **Sektorer:** norsk, britisk, dansk, nederlandsk og tysk sektor kan slås av og på hver for seg. Sektorgrensene kan få egen
+- **Sektorer:** norsk, britisk, dansk, nederlandsk, tysk og irsk sektor kan slås av og på hver for seg.
+  Grensen mot fransk sektor tegnes også (Frankrike har ingen offshore produksjon og ingen kartdata her). Sektorgrensene kan få egen
   farge, tykkelse og stil, og landnavn parallelt med linjen på hver side.
 - **Selskapsfilter:** velg ett eller flere selskaper som operatør og/eller partner. De kan fremheves
   (andre vises i grått) eller vises alene, med valgfri eierandel i etiketten. Gjelder felt, funn og lisenser.
@@ -63,7 +64,7 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
 ## Data
 
 `fetch_data.py` (kun Python-standardbiblioteket) henter alle lag og skriver `data/*.json`. Hver
-feature har `cc` = `no`, `uk`, `dk`, `nl` eller `de`.
+feature har `cc` = `no`, `uk`, `dk`, `nl`, `de` eller `ie`.
 
 | Sektor | Kilde | Lag |
 | --- | --- | --- |
@@ -71,6 +72,7 @@ feature har `cc` = `no`, `uk`, `dk`, `nl` eller `de`.
 | Storbritannia | [NSTA Open Data](https://opendata-nstauthority.hub.arcgis.com) (Open Government Licence v3.0) | felt (med rettighetshavere), uutbygde funn (punkter), lisens-delområder med eierandel, lete-/avgrensningsbrønner, transportrør ≥ 16", plattformer/FPSO/terminaler, havbunnsrammer, kvadranter, blokker |
 | Nederland | [NLOG](https://www.nlog.nl) (TNO for Ministerie van Economische Zaken) via [WFS](https://www.gdngeoservices.nl/geoserver/nlog/ows?service=WFS&request=GetCapabilities) | felt (offshore, med operatør og status), uutbygde felt som funn, aktive lete- og utvinningslisenser (uten rettighetshavere: tjenesten oppgir dem ikke), lete-/avgrensningsbrønner med resultat, produksjonsplattformer, satellitter og havbunnsinnretninger. Rørledninger mangler: Rijkswaterstaats rørlag for Nordsjøen er ikke åpent |
 | Tyskland | [EMODnet Human Activities](https://emodnet.ec.europa.eu/en/human-activities) | aktive lisenser, letebrønner, plattformer (A6-A og Mittelplate). Det finnes ingen åpne feltavgrensninger. Rørledningene i tysk sektor (Norpipe, Europipe, Zeepipe, Franpipe) ligger i Sodirs rørlag |
+| Irland | [Marine Institute](https://basemap.marine.ie/arcgis/rest/services/Physical/OffshoreEnergy/FeatureServer) (Petroleum Affairs Division, CC BY 4.0) og EMODnet | lisenser som ikke er utløpt, lete-/avgrensningsbrønner med resultat (til 2019), Corrib-røret og Corrib (havbunn). Ingen åpne feltavgrensninger; Kinsale-området stengte i 2020 og er utelatt. Gassrørene fra Skottland ligger i NSTA-laget |
 | Danmark | Energistyrelsens data via [GEUS WFS](https://data.geus.dk/geusmap/ows/4326.jsp) (feltavgrensninger, rørledninger, brønnresultater) og shapefilene i [sheffielddivided/ens](https://github.com/sheffielddivided/ens) | felt (status fra års- og månedsproduksjonen, eierandeler fra `ownership.json`), rørledninger (gass/olje/flerfase), lisenser, letebrønner med resultat (til 2019), innretninger, blokker |
 
 Selskapsnavn normaliseres til konsernnavn (`GROUPS` i skriptet), så ett valg dekker datterselskaper
@@ -109,8 +111,9 @@ Sektorgrensene (`sectors`, med landene på hver side i `l`/`r`) er den delen av 
 som ligger innenfor 0,01° fra nabolandets sektor. Det gir én sammenhengende linje per grense, også
 der blokknettene fra ulike kilder ikke deler punkter nøyaktig.
 
-Nederlandsk og tysk sektor er lagt til etterpå med `build_sectors.py` (krever shapely), fra de økonomiske
-sonene i [Marine Regions](https://www.marineregions.org) (CC BY 4.0), tysk sone avgrenset til Nordsjøen.
+Nederlandsk, tysk, irsk og fransk sektor er lagt til etterpå med `build_sectors.py` (krever shapely), fra de økonomiske
+sonene i [Marine Regions](https://www.marineregions.org) (CC BY 4.0), tysk sone avgrenset til Nordsjøen og fransk
+til havet nord for 47° N.
 Skriptet legger til omriss og grenser mot britisk, dansk og hverandres sektor uten å endre resten av
 bakgrunnskartet. `fetch_data.py` bruker omrissene til å skille sokkel fra land i NLOG- og EMODnet-dataene.
 
@@ -126,8 +129,8 @@ python3 -m http.server 8000
 | Fil | Rolle |
 |---|---|
 | `index.html` | Hele Mapmaker. Én fil, vanilla JS med d3 og topojson-client fra CDN (og mp4-muxer ved videoeksport), ingen byggesteg |
-| `fetch_data.py` | Henter kartlagene fra Sodir, NSTA, Energistyrelsen, NLOG og EMODnet og skriver `data/*.json` |
-| `build_sectors.py` | Legger nederlandsk og tysk sektor inn i `data/basemap.json` (kjøres for hånd) |
+| `fetch_data.py` | Henter kartlagene fra Sodir, NSTA, Energistyrelsen, NLOG, EMODnet og Marine Institute og skriver `data/*.json` |
+| `build_sectors.py` | Legger nederlandsk, tysk, irsk og fransk sektor inn i `data/basemap.json` (kjøres for hånd) |
 | `data/` | Kartlagene (`fields`, `discoveries`, `licences`, `pipelines`, `facilities`, `quadrants`, og `wells` og `blocks`, som lastes først når de slås på), `companies.json` (juridiske navn → konsern), `meta.json` (dato og kilder) og det statiske bakgrunnskartet `basemap.json` |
 | `.github/workflows/update-data.yml` | Kjører `fetch_data.py` daglig 04:30 UTC og committer bare når dataene er endret |
 | `.htaccess` | Apache-oppsett for map.kbak.no: sperrer skript, dokumentasjon og dotfiler, slår av mellomlagring av JSON/HTML og komprimerer |
