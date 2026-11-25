@@ -293,9 +293,25 @@
             <option value="abpDark">Profil – mørkt kart</option>
           </select>
         </div>
-        <label class="row"><input type="checkbox" id="showDepth" /> Dybdekurver (200, 1000, 2000, 3000 m)</label>
+        <label class="row"><input type="checkbox" id="showDepth" /> Havdybde</label>
+        <div class="row"><span class="grow">Dybdeintervaller</span>
+          <select id="depthDetail">
+            <option value="coarse">200, 1000, 2000, 3000 m</option>
+            <option value="fine">20, 50, 100, 200, 500, 1000, 2000, 3000 m</option>
+          </select>
+        </div>
         <label class="row"><input type="checkbox" id="showBorders" /> Landegrenser</label>
+        <label class="row"><input type="checkbox" id="showLakes" /> Innsjøer og elver</label>
+        <label class="row"><input type="checkbox" id="showUrban" /> Byområder</label>
         <label class="row"><input type="checkbox" id="showCities" /> Byer og steder</label>
+        <div class="row"><span class="grow">Flere byer</span>
+          <select id="moreCities">
+            <option value="0">Ingen</option>
+            <option value="1000000">Over 1 million innbyggere</option>
+            <option value="250000">Over 250 000 innbyggere</option>
+            <option value="50000">Over 50 000 innbyggere</option>
+          </select>
+        </div>
         <div class="row"><span>Landvalg</span>
           <select id="landMode" class="grow">
             <option value="all">Vis alle land</option><option value="some">Vis kun utvalgte land</option>
@@ -327,6 +343,16 @@
           <label class="lbl" style="margin-left:auto" title="Vis kvadrantnummer"><input type="checkbox" id="showQuadLabels" /> Nummer</label>
         </label>
         <label class="row"><input type="checkbox" id="showBlocks" /> Blokker</label>
+        <label class="row"><input type="checkbox" id="showGrat" /> Gradnett
+          <label class="lbl" style="margin-left:auto" title="Vis gradtall langs kanten"><input type="checkbox" id="showGratLabels" /> Gradtall</label>
+        </label>
+        <div class="row"><span class="grow">Avstand i gradnettet</span>
+          <select id="gratStep">
+            <option value="0">Automatisk</option>
+            <option value="0.5">0,5°</option><option value="1">1°</option><option value="2">2°</option>
+            <option value="5">5°</option><option value="10">10°</option>
+          </select>
+        </div>
         <details class="more">
           <summary>Flere valg</summary>
           <div class="sec">
@@ -741,6 +767,11 @@ const EN = {
   'Bakgrunnskart': 'Basemap', 'Tema': 'Theme', 'Lys': 'Light', 'Grå / nøytral': 'Grey / neutral', 'Mørk': 'Dark', 'Blå hav': 'Blue sea',
   'Hav': 'Sea', 'Land': 'Land', 'Transparent bakgrunn (ingen havfarge)': 'Transparent background (no sea colour)',
   'Dybdekurver (200, 1000, 2000, 3000 m)': 'Depth contours (200, 1000, 2000, 3000 m)', 'Landegrenser': 'Country borders',
+  'Havdybde': 'Sea depth', 'Dybdeintervaller': 'Depth intervals', 'Innsjøer og elver': 'Lakes and rivers', 'Byområder': 'Urban areas',
+  'Flere byer': 'More cities', 'Ingen': 'None', 'Over 1 million innbyggere': 'Population over 1 million',
+  'Over 250 000 innbyggere': 'Population over 250,000', 'Over 50 000 innbyggere': 'Population over 50,000',
+  'Gradnett': 'Graticule', 'Gradtall': 'Degree labels', 'Vis gradtall langs kanten': 'Show degree labels along the edge',
+  'Avstand i gradnettet': 'Graticule spacing',
   'Byer og steder': 'Cities and places', 'Tykkelse': 'Width', 'Tilbake til temaets standard': 'Back to theme default', 'Kvadranter': 'Quadrants', 'Nummer': 'Numbers', 'Vis kvadrantnummer': 'Show quadrant numbers', 'Blokker': 'Blocks',
   // Tittel og tekst
   'Tittel, tegnforklaring og tekst': 'Title, legend and text', 'Tittel': 'Title', 'Undertittel (valgfritt)': 'Subtitle (optional)',
@@ -887,6 +918,7 @@ function defaultState() {
     companies: [], role: 'any', colorByCompany: false, companyColors: {}, mode: 'highlight', splitRole: false, labelsOnlySel: true, labelShare: false, otherColor: PAL.grey20,
     theme: 'light', sea: THEMES.light.sea, land: THEMES.light.land, transparent: false,
     depth: true, borders: true, landMode: 'all', landCountries: ['NOR'], cities: true, quads: false, quadLabels: true, blocks: false,
+    depthDetail: 'coarse', lakes: false, urban: false, moreCities: 0, grat: false, gratLabels: true, gratStep: 0,
     // null = følg temaets rutenettfarge / standard tykkelse.
     quadColor: null, quadWidth: 0.8, blockColor: null, blockWidth: 0.35,
     title: false, titleText: '', subtitleText: '',
@@ -1007,6 +1039,25 @@ function ensureLazy(name) {
   }
   return lazyPromises[name];
 }
+// Tilleggslag til bakgrunnskartet (havdybde fra EMODnet, innsjøer/elver/byområder og byer fra Natural Earth).
+// Lastes først når de slås på. Se build_basemap_extra.py.
+const EXTRA = {};
+const BATHY_LEVELS = [20, 50, 100, 200, 500, 1000, 2000, 3000];
+function ensureExtra(name) {
+  if (EXTRA[name]) return EXTRA[name];
+  const key = 'extra:' + name;
+  if (!lazyPromises[key]) {
+    lazyPromises[key] = loadJSON(`data/${name}.json`).then(j => {
+      if (name === 'bathymetry') EXTRA[name] = BATHY_LEVELS.map(d => topojson.feature(j, j.objects['b' + d]));
+      else if (name === 'landextra') EXTRA[name] = Object.fromEntries(['lakes', 'rivers', 'urban'].map(k => [k, topojson.feature(j, j.objects[k])]));
+      else EXTRA[name] = j;
+      if (Array.isArray(EXTRA[name]) && EXTRA[name][0] && EXTRA[name][0].features) EXTRA[name].forEach(fc => fc.features.forEach(f => rewind(f.geometry)));
+      else if (EXTRA[name].lakes) ['lakes', 'urban'].forEach(k => EXTRA[name][k].features.forEach(f => rewind(f.geometry)));
+      render();
+    }).catch(e => { delete lazyPromises[key]; toast(t('Kunne ikke laste kartdata: {0}', e.message)); });
+  }
+  return null;
+}
 const inSector = f => S.sectors[f.properties.cc || 'no'] !== false;
 // «Vis kun utvalgte land»: bare de valgte landene tegnes; alle andre land utelates helt (blir hav).
 let landCache = { key: null, geo: null };
@@ -1025,6 +1076,87 @@ function bordersToDraw() {
   if (S.landMode !== 'some') return BASE.borders;
   // Bare grenser mellom to land som begge vises.
   return { type: 'FeatureCollection', features: BASE.borders.features.filter(f => countryVisible(f.properties.l) && countryVisible(f.properties.r)) };
+}
+
+// Innsjøer, elver og byområder, klippet til landet som tegnes (så de forsvinner med land som er valgt bort).
+function drawLandExtra(g, defs, T, lh) {
+  const X = ensureExtra('landextra');
+  if (!X) return;
+  const pth = pathAt(lh);
+  defs.append('clipPath').attr('id', 'landclip').append('path').attr('d', pth(landToDraw()));
+  const lg = g.append('g').attr('clip-path', 'url(#landclip)');
+  if (S.urban) lg.append('path').attr('d', pth(X.urban)).attr('fill', d3.interpolateRgb(S.land, T.border)(0.3)).attr('stroke', 'none');
+  if (S.lakes) {
+    const water = S.transparent ? T.depth : S.sea;
+    lg.append('path').attr('d', pth(X.rivers)).attr('fill', 'none').attr('stroke', d3.interpolateRgb(water, T.coast)(0.35))
+      .attr('stroke-width', 0.7).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
+    lg.append('path').attr('d', pth(X.lakes)).attr('fill', water).attr('stroke', T.coast).attr('stroke-width', 0.4);
+  }
+}
+
+// Faste steder (CITIES) pluss byer over valgt folketall fra Natural Earth. Byer nær et fast sted droppes.
+function citiesToDraw() {
+  if (!S.moreCities) return CITIES;
+  const places = ensureExtra('places');
+  if (!places) return CITIES;
+  const out = CITIES.slice();
+  for (const [no, en, lon, lat, c, pop] of places) {
+    if (pop < S.moreCities) continue;
+    if (out.some(q => Math.abs(q[1] - lon) < 0.25 && Math.abs(q[2] - lat) < 0.12)) continue;
+    out.push([S.lang === 'en' ? en : no, lon, lat, c]);
+  }
+  return out;
+}
+
+// Gradnett med gradtall langs venstre og øvre kant. Automatisk avstand gir 3–8 linjer over kartet.
+function drawGraticule(g, T, w, h, withLabels) {
+  const span = h * kmPerPx() / 111;
+  const centre = Pinv([w / 2, h / 2]) || [0, 60];
+  const step = S.gratStep || [0.5, 1, 2, 5, 10, 20].find(s => span / s <= 8) || 20;
+  // Lengdegrader står tettere mot nord; dobbel avstand nord for 55° gir omtrent kvadratiske ruter.
+  const lonStep = step * (Math.abs(centre[1]) > 55 ? 2 : 1);
+  const color = T.grid;
+  const lonMin = Math.floor(-60 / lonStep) * lonStep, latMin = Math.ceil(30 / step) * step;
+  // Egne linjer med tette punkter: d3 tegner rett linje (storsirkel) mellom punktene, og breddegrader er ikke storsirkler.
+  const lines = [];
+  for (let lon = lonMin; lon <= 80; lon += lonStep) lines.push(d3.range(30, 89.01, 0.5).map(lat => [lon, lat]));
+  for (let lat = latMin; lat < 89; lat += step) lines.push(d3.range(-60, 80.01, 0.5).map(lon => [lon, lat]));
+  g.append('path').attr('d', path({ type: 'MultiLineString', coordinates: lines }))
+    .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 0.6).attr('stroke-opacity', 0.7);
+  if (!withLabels || !S.gratLabels) return;
+  const fs = S.labelSize * 0.72, pad = 4;
+  const fmt = (v, pos, neg) => `${+Math.abs(v).toFixed(1)}°${v === 0 ? '' : (v > 0 ? pos : neg)}`;
+  const E = S.lang === 'en' ? 'E' : 'Ø', Wd = S.lang === 'en' ? 'W' : 'V';
+  const lg = g.append('g').attr('font-family', FONT).attr('font-size', fs).attr('fill', color);
+  const text = (x, y, s, anchor, base) => {
+    for (const halo of [true, false]) {
+      const el = lg.append('text').attr('x', x).attr('y', y).attr('text-anchor', anchor).attr('dominant-baseline', base).text(s);
+      if (halo) el.attr('fill', 'none').attr('stroke', S.transparent ? 'none' : S.sea).attr('stroke-width', 3).attr('stroke-linejoin', 'round');
+    }
+  };
+  // Finn hvor en linje (punktfølge i lengde/bredde) krysser en skjermkant, og sett tallet der.
+  const crossing = (pts, test) => {
+    let prev = null;
+    for (const ll of pts) {
+      const q = P(ll);
+      if (q && prev) {
+        const a = test(prev), b = test(q);
+        if ((a < 0) !== (b < 0)) { const t0 = a / (a - b); return [prev[0] + (q[0] - prev[0]) * t0, prev[1] + (q[1] - prev[1]) * t0]; }
+      }
+      prev = q;
+    }
+    return null;
+  };
+  for (let lon = lonMin; lon <= 80; lon += lonStep) {
+    const pts = d3.range(30, 89.01, 0.05).map(lat => [lon, lat]);
+    const q = crossing(pts, p => p[1] - pad);
+    if (q && q[0] > 20 && q[0] < w - 20) text(q[0], pad, fmt(+lon.toFixed(2), E, Wd), 'middle', 'hanging');
+  }
+  for (let lat = latMin; lat < 89; lat += step) {
+    const pts = d3.range(-60, 80.01, 0.05).map(lon => [lon, lat]);
+    const q = crossing(pts, p => p[0] - pad);
+    if (q && q[1] > 20 && q[1] < h - 20) text(pad, q[1], fmt(+lat.toFixed(2), 'N', 'S'), 'start', 'middle');
+  }
 }
 function buildLandList() {
   const box = $('landList');
@@ -1437,14 +1569,17 @@ function render() {
 
   // Bakgrunn
   if (S.depth) {
-    BASE.depth.forEach((fc, i) => {
-      g.append('path').attr('d', path(fc)).attr('fill', d3.interpolateRgb(S.sea, T.depth)((i + 1) / 4 * 0.9 + 0.1))
+    // Detaljert: åtte bånd fra EMODnet (vises grovt til de er lastet).
+    const bands = (S.depthDetail === 'fine' && ensureExtra('bathymetry')) || BASE.depth;
+    bands.forEach((fc, i) => {
+      g.append('path').attr('d', path(fc)).attr('fill', d3.interpolateRgb(S.sea, T.depth)((i + 1) / bands.length * 0.9 + 0.1))
         .attr('fill-opacity', S.transparent ? 0.6 : 1).attr('stroke', 'none');
     });
   }
   const lh = landH();
   if (lh > 0) drawRaisedLand(g, landToDraw(), T, lh);
   else g.append('path').attr('d', path(landToDraw())).attr('fill', S.land).attr('stroke', T.coast).attr('stroke-width', 0.6).attr('stroke-linejoin', 'round');
+  if ((S.lakes || S.urban) && !(RM && RM.draft)) drawLandExtra(g, defs, T, lh);
   if (S.borders) g.append('path').attr('d', pathAt(lh)(bordersToDraw())).attr('fill', 'none').attr('stroke', T.border).attr('stroke-width', 0.8).attr('stroke-dasharray', '3 2');
 
   if (S.blocks && !(RM && RM.draft)) {
@@ -1461,6 +1596,8 @@ function render() {
       .attr('stroke-dasharray', S.sectorDash ? `${(sw * 6).toFixed(1)} ${(sw * 2.2).toFixed(1)} ${(sw * 1.4).toFixed(1)} ${(sw * 2.2).toFixed(1)}` : null)
       .attr('stroke-linejoin', 'round');
   }
+
+  if (S.grat) drawGraticule(g, T, w, h, !RM || RM.labels);
 
   if (persp.tilted && S.haze && !S.transparent) {
     // Dis mot horisonten over bakgrunnskartet (ikke over feltene) gir dybdefølelse.
@@ -1588,7 +1725,7 @@ function render() {
 
   if (S.cities && wantLabels) {
     const cg = g.append('g');
-    for (const [name, lon, lat, country] of CITIES) {
+    for (const [name, lon, lat, country] of citiesToDraw()) {
       if (!countryVisible(country)) continue;
       const xy = P([lon, lat], landH());
       if (!xy || xy[0] < 0 || xy[1] < 0 || xy[0] > w || xy[1] > h) continue;
@@ -2272,6 +2409,7 @@ function drawOverlay(T, titleOnly = false) {
     if (S.sectors.nl) src.push('NLOG');
     if (S.sectors.de || S.sectors.ie) src.push('EMODnet');
     if (S.sectors.ie) src.push('Marine Institute');
+    if (S.depth && S.depthDetail === 'fine') src.push('EMODnet Bathymetry');
     const txt = `${t('Kilde')}: ${src.join(', ')}${META.updated ? ', ' + t('data per {0}', fmtDate(META.updated)) : ''} · Natural Earth`;
     g.append('text').attr('x', w - 8).attr('y', h - 7).attr('text-anchor', 'end').attr('font-family', FONT).attr('font-size', 12)
       .attr('fill', ink).attr('fill-opacity', 0.65).text(txt);
@@ -3365,6 +3503,13 @@ function syncAllControls() {
   bindValue('landColor', () => S.land, v => S.land = v, 'input');
   bindCheck('transparent', () => S.transparent, v => S.transparent = v);
   bindCheck('showDepth', () => S.depth, v => S.depth = v);
+  bindValue('depthDetail', () => S.depthDetail, v => S.depthDetail = v);
+  bindCheck('showLakes', () => S.lakes, v => S.lakes = v);
+  bindCheck('showUrban', () => S.urban, v => S.urban = v);
+  bindValue('moreCities', () => String(S.moreCities), v => S.moreCities = +v);
+  bindCheck('showGrat', () => S.grat, v => S.grat = v);
+  bindCheck('showGratLabels', () => S.gratLabels, v => S.gratLabels = v);
+  bindValue('gratStep', () => String(S.gratStep), v => S.gratStep = +v);
   bindCheck('showBorders', () => S.borders, v => S.borders = v);
   bindValue('landMode', () => S.landMode, v => { S.landMode = v; buildLandList(); });
   buildLandList();
