@@ -1,18 +1,18 @@
 """
-Legger nederlandsk, tysk, irsk og fransk sektor inn i bakgrunnskartet
-(data/basemap.json): sektoromriss (sectorAreas, cc = nl/de/ie/fr) og sektorgrenser
-(sectors) mot britisk, dansk og hverandres sektor. Frankrike har ingen kartdata,
-bare grensen (og omrisset, som avgjør hvilken side landnavnet står på).
+Legger nederlandsk, tysk, irsk, fransk og belgisk sektor inn i bakgrunnskartet
+(data/basemap.json): sektoromriss (sectorAreas, cc = nl/de/ie/fr/be) og sektorgrenser
+(sectors) mot britisk, dansk og hverandres sektor. Frankrike og Belgia har ingen
+kartdata, bare grensene (og omrisset, som avgjør hvilken side landnavnet står på).
 
 Omrissene er de økonomiske sonene fra Marine Regions (VLIZ, CC BY 4.0), tysk sone
 avgrenset til Nordsjøen og fransk til havet nord for 47° N, minus det som allerede hører til norsk, britisk og dansk
 sektor (bygget fra blokknettene). Grensene er den delen av omrisset som ligger
 innenfor 0,02° fra nabosektoren, slik README beskriver for de andre sektorene.
 
-Kjøres for hånd (krever shapely) på bakgrunnskartet slik det var før NL/DE/IE/FR
+Kjøres for hånd (krever shapely) på bakgrunnskartet slik det var før NL/DE/IE/FR/BE
 (git show 9339a8d:data/basemap.json), etter at EEZ-ene er lastet ned:
 
-    for c in NLD DEU IRL FRA; do curl -o dl/eez_$c.json "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions:eez&outputFormat=application/json&CQL_FILTER=iso_ter1='$c'"; done
+    for c in NLD DEU IRL FRA BEL; do curl -o dl/eez_$c.json "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions:eez&outputFormat=application/json&CQL_FILTER=iso_ter1='$c'"; done
     python build_sectors.py data/basemap.json dl
 """
 import json
@@ -61,13 +61,14 @@ def eez(c, clip=None):
     return unary_union(polys).simplify(0.001)
 new = {'nl': eez('NLD'), 'de': eez('DEU', box(0, 50, 9.3, 58)), 'ie': eez('IRL'),
        # Fransk sone nord for 47° N (Kanalen og nordlige Biscaya); bakgrunnskartet slutter ved 47,4° N.
-       'fr': eez('FRA', box(-10, 47, 3, 52))}
+       'fr': eez('FRA', box(-10, 47, 3, 52)), 'be': eez('BEL')}
 # Deler med eksisterende sektorer fjernes, så hver sjø bare hører til ett land.
 for k in new:
     for o, g in areas.items():
         new[k] = new[k].difference(g)
 new['de'] = new['de'].difference(new['nl'])
 new['fr'] = new['fr'].difference(new['ie'])
+new['be'] = new['be'].difference(new['nl']).difference(new['fr'])
 TOL = 0.02
 lines = []
 def border(a, b_, l, r):
@@ -89,6 +90,9 @@ border(new['de'], areas['dk'], 'dk', 'de')
 border(new['ie'], areas['uk'], 'uk', 'ie')
 border(new['fr'], areas['uk'], 'uk', 'fr')
 border(new['fr'], new['ie'], 'ie', 'fr')
+border(new['be'], new['nl'], 'nl', 'be')
+border(new['be'], areas['uk'], 'uk', 'be')
+border(new['be'], new['fr'], 'fr', 'be')
 # Kod nye buer med bakgrunnskartets transform og legg dem til topologien.
 sx, sy = b['transform']['scale']; tx, ty = b['transform']['translate']
 def add_arc(coords):

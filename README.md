@@ -13,7 +13,7 @@ målestokk, etiketter) og **Lagre**. Én seksjon er åpen om gangen, sjeldne fin
   transportrørledninger (filtrert på medium, valgfritt bare de som er knyttet til valgt selskap/portefølje,
   med etiketter langs røret), innretninger og letebrønner (filtrert på år, formål og resultat).
 - **Sektorer:** norsk, britisk, dansk, nederlandsk, tysk og irsk sektor kan slås av og på hver for seg.
-  Grensen mot fransk sektor tegnes også (Frankrike har ingen offshore produksjon og ingen kartdata her). Sektorgrensene kan få egen
+  Grensene mot fransk og belgisk sektor tegnes også (ingen av landene har offshore produksjon eller kartdata her). Sektorgrensene kan få egen
   farge, tykkelse og stil, og landnavn parallelt med linjen på hver side.
 - **Selskapsfilter:** velg ett eller flere selskaper som operatør og/eller partner. De kan fremheves
   (andre vises i grått) eller vises alene, med valgfri eierandel i etiketten. Gjelder felt, funn og lisenser.
@@ -111,7 +111,7 @@ Sektorgrensene (`sectors`, med landene på hver side i `l`/`r`) er den delen av 
 som ligger innenfor 0,01° fra nabolandets sektor. Det gir én sammenhengende linje per grense, også
 der blokknettene fra ulike kilder ikke deler punkter nøyaktig.
 
-Nederlandsk, tysk, irsk og fransk sektor er lagt til etterpå med `build_sectors.py` (krever shapely), fra de økonomiske
+Nederlandsk, tysk, irsk, fransk og belgisk sektor er lagt til etterpå med `build_sectors.py` (krever shapely), fra de økonomiske
 sonene i [Marine Regions](https://www.marineregions.org) (CC BY 4.0), tysk sone avgrenset til Nordsjøen og fransk
 til havet nord for 47° N.
 Skriptet legger til omriss og grenser mot britisk, dansk og hverandres sektor uten å endre resten av
@@ -130,7 +130,7 @@ python3 -m http.server 8000
 |---|---|
 | `index.html` | Hele Mapmaker. Én fil, vanilla JS med d3 og topojson-client fra CDN (og mp4-muxer ved videoeksport), ingen byggesteg |
 | `fetch_data.py` | Henter kartlagene fra Sodir, NSTA, Energistyrelsen, NLOG, EMODnet og Marine Institute og skriver `data/*.json` |
-| `build_sectors.py` | Legger nederlandsk, tysk, irsk og fransk sektor inn i `data/basemap.json` (kjøres for hånd) |
+| `build_sectors.py` | Legger nederlandsk, tysk, irsk, fransk og belgisk sektor inn i `data/basemap.json` (kjøres for hånd) |
 | `data/` | Kartlagene (`fields`, `discoveries`, `licences`, `pipelines`, `facilities`, `quadrants`, og `wells` og `blocks`, som lastes først når de slås på), `companies.json` (juridiske navn → konsern), `meta.json` (dato og kilder) og det statiske bakgrunnskartet `basemap.json` |
 | `.github/workflows/update-data.yml` | Kjører `fetch_data.py` daglig 04:30 UTC og committer bare når dataene er endret |
 | `.htaccess` | Apache-oppsett for map.kbak.no: sperrer skript, dokumentasjon og dotfiler, slår av mellomlagring av JSON/HTML og komprimerer |

@@ -562,8 +562,8 @@ const DATA_FILES = ['fields', 'discoveries', 'licences', 'pipelines', 'facilitie
 // Store lag som lastes først når de slås på.
 const LAZY_FILES = ['wells', 'blocks'];
 const SECTORS = { no: 'Norge', uk: 'Storbritannia', dk: 'Danmark', nl: 'Nederland', de: 'Tyskland', ie: 'Irland' };
-// Navn langs sektorgrensene. Frankrike har bare grensen (ingen kartdata), og derfor ikke noe sektorvalg.
-const SECTOR_NAMES = { ...SECTORS, fr: 'Frankrike' };
+// Navn langs sektorgrensene. Frankrike og Belgia har bare grensene (ingen kartdata), og derfor ikke noe sektorvalg.
+const SECTOR_NAMES = { ...SECTORS, fr: 'Frankrike', be: 'Belgia' };
 // Land med landegrenser innenfor bakgrunnskartet (ISO 3166-1 alfa-3, som i Natural Earth).
 const COUNTRIES = {
   NOR: 'Norge', SWE: 'Sverige', FIN: 'Finland', RUS: 'Russland', DNK: 'Danmark', DEU: 'Tyskland', NLD: 'Nederland',
