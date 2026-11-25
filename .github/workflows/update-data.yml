@@ -26,7 +26,7 @@ jobs:
           python-version: '3.12'
 
       # fetch_data.py bruker kun standardbiblioteket.
-      - name: Hent data fra Sodir, NSTA og Energistyrelsen
+      - name: Hent data fra Sodir, NSTA, Energistyrelsen, NLOG og EMODnet
         run: python fetch_data.py
 
       - name: Commit hvis dataene er endret
